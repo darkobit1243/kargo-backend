@@ -21,16 +21,22 @@ import { Delivery } from './deliveries/delivery.entity';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        type: 'postgres',
-        url: config.get<string>('DATABASE_URL'),
-        entities: [User, Listing, Offer, Delivery],
-        synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
-        ssl:
-          config.get<string>('DB_SSL', 'false') === 'true'
-            ? { rejectUnauthorized: false }
-            : false,
-      }),
+      useFactory: (config: ConfigService) => {
+        // Railway içi için fallback URL (env yoksa buraya düşer)
+        const fallbackUrl =
+          'postgresql://postgres:EuBICrJOGohRVSbakjwPHPNEFpzhcth1@postgres.railway.internal:5432/railway';
+
+        const url = config.get<string>('DATABASE_URL') ?? fallbackUrl;
+        const sslEnabled = config.get<string>('DB_SSL', 'false') === 'true';
+
+        return {
+          type: 'postgres',
+          url,
+          entities: [User, Listing, Offer, Delivery],
+          synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
+          ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+        };
+      },
     }),
     AuthModule,
     ListingsModule,
