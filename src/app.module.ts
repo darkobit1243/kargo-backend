@@ -10,6 +10,9 @@ import { DeliveriesModule } from './deliveries/deliveries.module';
 import { WsModule } from './ws/ws.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { User } from './auth/user.entity';
+import { Listing } from './listings/listing.entity';
+import { Offer } from './offers/offer.entity';
+import { Delivery } from './deliveries/delivery.entity';
 
 @Module({
   imports: [
@@ -23,10 +26,14 @@ import { User } from './auth/user.entity';
         host: config.get<string>('DB_HOST', 'localhost'),
         port: parseInt(config.get<string>('DB_PORT', '5432'), 10),
         username: config.get<string>('DB_USERNAME', 'postgres'),
-        password: config.get<string>('DB_PASSWORD', 'postgres'),
-        database: config.get<string>('DB_NAME', 'kargo_db'),
-        entities: [User],
-        synchronize: true, // TODO: disable in production and use migrations instead
+        password: config.get<string>('DB_PASSWORD', '421475'),
+        database: config.get<string>('DB_NAME', 'myapp'),
+        entities: [User, Listing, Offer, Delivery],
+        synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
+        ssl:
+          config.get<string>('DB_SSL', 'false') === 'true'
+            ? { rejectUnauthorized: false }
+            : false,
       }),
     }),
     AuthModule,

@@ -21,6 +21,16 @@ export class DeliveriesController {
     return this.deliveriesService.deliver(id);
   }
 
+  @Get('by-listing/:listingId')
+  findByListing(@Param('listingId') listingId: string) {
+    return this.deliveriesService.findByListing(listingId);
+  }
+
+   @Get('by-carrier/:carrierId')
+   findByCarrier(@Param('carrierId') carrierId: string) {
+     return this.deliveriesService.findByCarrier(carrierId);
+   }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.deliveriesService.findOne(id);

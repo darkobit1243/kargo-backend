@@ -16,6 +16,11 @@ export class ListingsController {
     return this.listingsService.findAll();
   }
 
+  @Get('owner/:ownerId')
+  findByOwner(@Param('ownerId') ownerId: string) {
+    return this.listingsService.findByOwner(ownerId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.listingsService.findOne(id);

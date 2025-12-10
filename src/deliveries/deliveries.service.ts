@@ -1,45 +1,59 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
-
-export interface Delivery {
-  id: string;
-  listingId: string;
-  carrierId?: string;
-  status: 'pickup_pending' | 'in_transit' | 'delivered';
-}
+import { Delivery } from './delivery.entity';
 
 @Injectable()
 export class DeliveriesService {
-  private deliveries: Delivery[] = [];
+  constructor(
+    private wsGateway: WsGateway,
+    @InjectRepository(Delivery)
+    private readonly deliveriesRepository: Repository<Delivery>,
+  ) {}
 
-  constructor(private wsGateway: WsGateway) {}
-
-  create(dto: { listingId: string }): Delivery {
-    const delivery: Delivery = { id: Date.now().toString(), listingId: dto.listingId, status: 'pickup_pending' };
-    this.deliveries.push(delivery);
-    return delivery;
+  async create(dto: { listingId: string }): Promise<Delivery> {
+    const delivery = this.deliveriesRepository.create({
+      listingId: dto.listingId,
+      status: 'pickup_pending',
+    });
+    return this.deliveriesRepository.save(delivery);
   }
 
-  pickup(id: string, carrierId: string): Delivery | undefined {
-    const delivery = this.deliveries.find(d => d.id === id);
+  async pickup(id: string, carrierId: string): Promise<Delivery | null> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (delivery && delivery.status === 'pickup_pending') {
       delivery.carrierId = carrierId;
       delivery.status = 'in_transit';
-      this.wsGateway.sendDeliveryUpdate(id, delivery);
+      delivery.pickupAt = new Date();
+      const saved = await this.deliveriesRepository.save(delivery);
+      this.wsGateway.sendDeliveryUpdate(id, saved);
+      return saved;
     }
-    return delivery;
+    return delivery ?? null;
   }
 
-  deliver(id: string): Delivery | undefined {
-    const delivery = this.deliveries.find(d => d.id === id);
+  async deliver(id: string): Promise<Delivery | null> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (delivery && delivery.status === 'in_transit') {
       delivery.status = 'delivered';
-      this.wsGateway.sendDeliveryUpdate(id, delivery);
+      delivery.deliveredAt = new Date();
+      const saved = await this.deliveriesRepository.save(delivery);
+      this.wsGateway.sendDeliveryUpdate(id, saved);
+      return saved;
     }
-    return delivery;
+    return delivery ?? null;
   }
 
-  findOne(id: string): Delivery | undefined {
-    return this.deliveries.find(d => d.id === id);
+  async findOne(id: string): Promise<Delivery | null> {
+    return this.deliveriesRepository.findOne({ where: { id } });
+  }
+
+  async findByListing(listingId: string): Promise<Delivery | null> {
+    return this.deliveriesRepository.findOne({ where: { listingId } });
+  }
+
+  async findByCarrier(carrierId: string): Promise<Delivery[]> {
+    return this.deliveriesRepository.find({ where: { carrierId } });
   }
 }

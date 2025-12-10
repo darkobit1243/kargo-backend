@@ -1,33 +1,30 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { CreateListingDto } from './dto/create-listing.dto';
-
-export interface Listing {
-  id: string;
-  title: string;
-  description: string;
-  photos: string[];
-  weight: number;
-  dimensions: { length: number; width: number; height: number };
-  fragile: boolean;
-  pickup_location: { lat: number; lng: number };
-  dropoff_location: { lat: number; lng: number };
-}
+import { Listing } from './listing.entity';
 
 @Injectable()
 export class ListingsService {
-  private listings: Listing[] = [];
+  constructor(
+    @InjectRepository(Listing)
+    private readonly listingsRepository: Repository<Listing>,
+  ) {}
 
-  create(dto: CreateListingDto): Listing {
-    const newListing: Listing = { id: Date.now().toString(), ...dto };
-    this.listings.push(newListing);
-    return newListing;
+  async create(dto: CreateListingDto): Promise<Listing> {
+    const listing = this.listingsRepository.create(dto);
+    return this.listingsRepository.save(listing);
   }
 
-  findAll(): Listing[] {
-    return this.listings;
+  async findAll(): Promise<Listing[]> {
+    return this.listingsRepository.find();
   }
 
-  findOne(id: string): Listing | undefined {
-    return this.listings.find(l => l.id === id);
+  async findOne(id: string): Promise<Listing | null> {
+    return this.listingsRepository.findOne({ where: { id } });
+  }
+
+  async findByOwner(ownerId: string): Promise<Listing[]> {
+    return this.listingsRepository.find({ where: { ownerId } });
   }
 }
