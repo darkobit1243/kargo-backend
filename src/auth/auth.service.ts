@@ -32,6 +32,12 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Hem gelen şifre hem de DB'deki hash gerçekten dolu mu kontrol et.
+    // Aksi halde bcrypt.compare "data and hash arguments required" hatası fırlatıyor.
+    if (!user.password || !found.password) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
     const valid = await bcrypt.compare(user.password, found.password);
     if (!valid) {
       throw new UnauthorizedException('Invalid credentials');
