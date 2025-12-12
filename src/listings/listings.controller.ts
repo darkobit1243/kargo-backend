@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, UseGuards, ForbiddenException, Logger } from '@nestjs/common';
 import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -8,6 +8,7 @@ import type { Request } from 'express';
 
 @Controller('listings')
 export class ListingsController {
+  private readonly logger = new Logger(ListingsController.name);
   constructor(private listingsService: ListingsService) {}
 
   @Post()
@@ -15,6 +16,7 @@ export class ListingsController {
   @Roles('sender')
   create(@Req() req: Request, @Body() dto: CreateListingDto) {
     const payload = req.user as { sub: string };
+    this.logger.log(`create listing payload: ${JSON.stringify(dto)}`);
     return this.listingsService.create({
       ...dto,
       ownerId: payload.sub,
