@@ -17,10 +17,7 @@ export class ListingsController {
   create(@Req() req: Request, @Body() dto: CreateListingDto) {
     const payload = req.user as { sub: string };
     this.logger.log(`create listing payload: ${JSON.stringify(dto)}`);
-    return this.listingsService.create({
-      ...dto,
-      ownerId: payload.sub,
-    });
+    return this.listingsService.create(payload.sub, dto);
   }
 
   @Get()

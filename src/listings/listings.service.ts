@@ -11,8 +11,11 @@ export class ListingsService {
     private readonly listingsRepository: Repository<Listing>,
   ) {}
 
-  async create(dto: CreateListingDto): Promise<Listing> {
-    const listing = this.listingsRepository.create(dto);
+  async create(ownerId: string, dto: CreateListingDto): Promise<Listing> {
+    const listing = this.listingsRepository.create({
+      ...dto,
+      ownerId,
+    });
     return this.listingsRepository.save(listing);
   }
 
