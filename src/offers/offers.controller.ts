@@ -1,6 +1,10 @@
-import { Controller, Post, Get, Param, Body } from '@nestjs/common';
+import { Controller, Post, Get, Param, Body, Req, UseGuards } from '@nestjs/common';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import type { Request } from 'express';
 
 @Controller('offers')
 export class OffersController {
@@ -8,8 +12,14 @@ export class OffersController {
 
   // Yeni teklif oluştur
   @Post()
-  create(@Body() dto: CreateOfferDto): any {
-    return this.offersService.create(dto);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  create(@Req() req: Request, @Body() dto: CreateOfferDto): any {
+    const payload = req.user as { sub: string };
+    return this.offersService.create({
+      ...dto,
+      proposerId: payload.sub,
+    });
   }
 
   // Belirli listingId'ye ait teklifleri getir
@@ -20,12 +30,16 @@ export class OffersController {
 
   // Teklifi kabul et
   @Post('accept/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender')
   accept(@Param('id') id: string): any {
     return this.offersService.acceptOffer(id);
   }
 
   // Teklifi reddet
   @Post('reject/:id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender')
   reject(@Param('id') id: string): any {
     return this.offersService.rejectOffer(id);
   }

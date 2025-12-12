@@ -30,10 +30,6 @@ class LocationDto {
 export class CreateListingDto {
   @IsString()
   @IsNotEmpty()
-  ownerId: string;
-
-  @IsString()
-  @IsNotEmpty()
   title: string;
 
   @IsString()

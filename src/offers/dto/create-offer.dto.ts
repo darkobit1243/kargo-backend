@@ -5,10 +5,6 @@ export class CreateOfferDto {
   @IsNotEmpty()
   listingId: string;
 
-  @IsString()
-  @IsNotEmpty()
-  proposerId: string; // B kullanıcı ID
-
   @IsNumber()
   amount: number;
 

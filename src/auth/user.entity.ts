@@ -16,6 +16,24 @@ export class User {
   @Column({ type: 'varchar', default: 'sender' })
   role: UserRole;
 
+  @Column({ nullable: true })
+  fullName?: string;
+
+  @Column({ nullable: true })
+  phone?: string;
+
+  @Column({ nullable: true })
+  address?: string;
+
+  @Column({ nullable: true })
+  vehicleType?: string;
+
+  @Column({ nullable: true })
+  vehiclePlate?: string;
+
+  @Column({ nullable: true })
+  serviceArea?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

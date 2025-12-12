@@ -2,14 +2,14 @@ import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
-import type { UserRole } from './user.entity';
+import { RegisterUserDto } from './dto/register-user.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() body: { email: string; password: string; role?: UserRole }): Promise<any> {
+  async register(@Body() body: RegisterUserDto): Promise<any> {
     return this.authService.register(body);
   }
 
@@ -22,6 +22,7 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@Req() req: Request): Promise<any> {
-    return req.user;
+    const payload = req.user as { sub: string };
+    return this.authService.findById(payload.sub);
   }
 }
