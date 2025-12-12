@@ -3,7 +3,7 @@ import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from './user.entity';
+import { User, type UserRole } from './user.entity';
 
 @Injectable()
 export class AuthService {
@@ -12,7 +12,11 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async register(user: { email: string; password: string }): Promise<User> {
+  async register(user: { email: string; password: string; role?: UserRole }): Promise<{
+    token: string;
+    role: UserRole;
+    user: { id: string; email: string; role: UserRole };
+  }> {
     const existing = await this.usersRepository.findOne({ where: { email: user.email } });
     if (existing) {
       throw new ConflictException('Email already in use');
@@ -22,11 +26,26 @@ export class AuthService {
     const newUser = this.usersRepository.create({
       email: user.email,
       password: hashed,
+      role: user.role ?? 'sender',
     });
-    return this.usersRepository.save(newUser);
+    const saved = await this.usersRepository.save(newUser);
+    const token = this.jwtService.sign({
+      sub: saved.id,
+      email: saved.email,
+      role: saved.role,
+    });
+    return {
+      token,
+      role: saved.role,
+      user: { id: saved.id, email: saved.email, role: saved.role },
+    };
   }
 
-  async login(user: { email: string; password: string }): Promise<{ token: string }> {
+  async login(user: { email: string; password: string }): Promise<{
+    token: string;
+    role: UserRole;
+    user: { id: string; email: string; role: UserRole };
+  }> {
     const found = await this.usersRepository.findOne({ where: { email: user.email } });
     if (!found) {
       throw new UnauthorizedException('Invalid credentials');
@@ -43,7 +62,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = this.jwtService.sign({ sub: found.id, email: found.email });
-    return { token };
+    const token = this.jwtService.sign({ sub: found.id, email: found.email, role: found.role });
+    return { token, role: found.role, user: { id: found.id, email: found.email, role: found.role } };
   }
 }
