@@ -13,4 +13,8 @@ export class WsGateway {
   sendDeliveryUpdate(deliveryId: string, update: any) {
     this.server.emit(`delivery_${deliveryId}`, update);
   }
+
+  sendMessage(listingId: string, message: any) {
+    this.server.emit(`message_${listingId}`, message);
+  }
 }

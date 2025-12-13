@@ -1,0 +1,15 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Message } from './message.entity';
+import { MessagesController } from './messages.controller';
+import { MessagesService } from './messages.service';
+import { WsModule } from '../ws/ws.module';
+
+@Module({
+  imports: [TypeOrmModule.forFeature([Message]), WsModule],
+  controllers: [MessagesController],
+  providers: [MessagesService],
+  exports: [MessagesService],
+})
+export class MessagesModule {}
+

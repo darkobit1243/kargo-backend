@@ -9,6 +9,8 @@ import { OffersModule } from './offers/offers.module';
 import { DeliveriesModule } from './deliveries/deliveries.module';
 import { WsModule } from './ws/ws.module';
 import { RatingsModule } from './ratings/ratings.module';
+import { Message } from './messages/message.entity';
+import { MessagesModule } from './messages/messages.module';
 import { User } from './auth/user.entity';
 import { Listing } from './listings/listing.entity';
 import { Offer } from './offers/offer.entity';
@@ -32,7 +34,7 @@ import { Delivery } from './deliveries/delivery.entity';
         return {
           type: 'postgres',
           url,
-          entities: [User, Listing, Offer, Delivery],
+          entities: [User, Listing, Offer, Delivery, Message],
           synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
           ssl: sslEnabled ? { rejectUnauthorized: false } : false,
         };
@@ -43,6 +45,7 @@ import { Delivery } from './deliveries/delivery.entity';
     OffersModule,
     DeliveriesModule,
     WsModule,
+    MessagesModule,
     RatingsModule,
   ],
   controllers: [AppController],
