@@ -99,5 +99,29 @@ export class MessagesService {
       carrierEmail: userMap.get(entry.carrierId) ?? 'Carrier',
     }));
   }
+
+  async getSenderContacts() {
+    // For carriers: show senders who have active listings
+    const listings = await this.listingRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 50, // Limit to prevent too many results
+    });
+    if (!listings.length) {
+      return [];
+    }
+    const senderIds = [...new Set(listings.map(listing => listing.ownerId))];
+    const users = await this.userRepository.findByIds(senderIds);
+    const userMap = new Map(users.map(user => [user.id, { email: user.email, fullName: user.fullName }]));
+    const listingCounts = new Map<string, number>();
+    for (const listing of listings) {
+      listingCounts.set(listing.ownerId, (listingCounts.get(listing.ownerId) ?? 0) + 1);
+    }
+    return senderIds.map(senderId => ({
+      senderId,
+      senderEmail: userMap.get(senderId)?.email ?? 'Sender',
+      senderName: userMap.get(senderId)?.fullName ?? 'Gönderici',
+      activeListingsCount: listingCounts.get(senderId) ?? 0,
+    }));
+  }
 }
 

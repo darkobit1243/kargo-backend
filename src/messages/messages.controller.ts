@@ -35,7 +35,10 @@ export class MessagesController {
 
   @Get('contacts')
   async contacts(@Req() req: Request) {
-    const payload = req.user as { sub: string };
+    const payload = req.user as { sub: string; role?: string };
+    if (payload.role === 'carrier') {
+      return this.messagesService.getSenderContacts();
+    }
     return this.messagesService.getCarrierContacts(payload.sub);
   }
 }
