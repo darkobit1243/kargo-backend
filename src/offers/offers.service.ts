@@ -1,9 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
 import { Offer, OfferStatus } from './offer.entity';
 import { Delivery } from '../deliveries/delivery.entity';
+import { Listing } from '../listings/listing.entity';
 
 @Injectable()
 export class OffersService {
@@ -13,6 +14,8 @@ export class OffersService {
     private readonly offersRepository: Repository<Offer>,
     @InjectRepository(Delivery)
     private readonly deliveriesRepository: Repository<Delivery>,
+    @InjectRepository(Listing)
+    private readonly listingsRepository: Repository<Listing>,
   ) {}
 
   // Teklif oluştur
@@ -22,6 +25,15 @@ export class OffersService {
     amount: number;
     message?: string;
   }): Promise<Offer> {
+    // Kendi listingine teklif verememeli
+    const listing = await this.listingsRepository.findOne({ where: { id: dto.listingId } });
+    if (!listing) {
+      throw new BadRequestException('Listing bulunamadı');
+    }
+    if (listing.ownerId === dto.proposerId) {
+      throw new BadRequestException('Kendi ilanınıza teklif veremezsiniz');
+    }
+
     const offer = this.offersRepository.create({
       ...dto,
       status: 'pending' as OfferStatus,
