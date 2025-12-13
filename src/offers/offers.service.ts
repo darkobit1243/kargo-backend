@@ -5,6 +5,7 @@ import { WsGateway } from '../ws/ws.gateway';
 import { Offer, OfferStatus } from './offer.entity';
 import { Delivery } from '../deliveries/delivery.entity';
 import { Listing } from '../listings/listing.entity';
+import { Message } from '../messages/message.entity';
 
 @Injectable()
 export class OffersService {
@@ -16,6 +17,8 @@ export class OffersService {
     private readonly deliveriesRepository: Repository<Delivery>,
     @InjectRepository(Listing)
     private readonly listingsRepository: Repository<Listing>,
+    @InjectRepository(Message)
+    private readonly messagesRepository: Repository<Message>,
   ) {}
 
   // Teklif oluştur
@@ -39,6 +42,17 @@ export class OffersService {
       status: 'pending' as OfferStatus,
     });
     const saved = await this.offersRepository.save(offer);
+
+    // Otomatik mesaj oluştur ve real-time gönder
+    const message = this.messagesRepository.create({
+      listingId: dto.listingId,
+      senderId: listing.ownerId,
+      carrierId: dto.proposerId,
+      content: `Taşıyıcı teklif verdi: ${dto.amount} TL`,
+      fromCarrier: true,
+    });
+    const savedMessage = await this.messagesRepository.save(message);
+    this.wsGateway.sendMessage(dto.listingId, savedMessage);
     this.wsGateway.sendOfferNotification(dto.listingId, saved);
     return saved;
   }
@@ -46,6 +60,17 @@ export class OffersService {
   // Teklifleri listele
   async findByListing(listingId: string): Promise<Offer[]> {
     return this.offersRepository.find({ where: { listingId } });
+  }
+
+  // Owner'a ait tüm listinglerdeki teklifler
+  async findByOwner(ownerId: string): Promise<Offer[]> {
+    const listings = await this.listingsRepository.find({ where: { ownerId } });
+    if (!listings.length) return [];
+    const listingIds = listings.map(l => l.id);
+    return this.offersRepository.find({
+      where: { listingId: In(listingIds) },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   // Teklifi reddet

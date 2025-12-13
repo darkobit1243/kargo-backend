@@ -36,6 +36,17 @@ export class DeliveriesController {
     return this.deliveriesService.findByListing(listingId);
   }
 
+  @Get('by-owner/:ownerId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender')
+  findByOwner(@Param('ownerId') ownerId: string, @Req() req: Request) {
+    const payload = req.user as { sub: string };
+    if (payload.sub !== ownerId) {
+      throw new ForbiddenException('Kendi teslimatlarına erişim yetkiniz yok');
+    }
+    return this.deliveriesService.findByOwner(ownerId);
+  }
+
   @Get('by-carrier/:carrierId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('carrier')

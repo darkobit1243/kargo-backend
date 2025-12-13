@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import type { Request } from 'express';
+import { ForbiddenException } from '@nestjs/common';
 
 @Controller('offers')
 export class OffersController {
@@ -26,6 +27,18 @@ export class OffersController {
   @Get('listing/:listingId')
   findByListing(@Param('listingId') listingId: string): any {
     return this.offersService.findByListing(listingId);
+  }
+
+  // Owner'ın tüm ilanlarındaki teklifler
+  @Get('owner/:ownerId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender')
+  findByOwner(@Param('ownerId') ownerId: string, @Req() req: Request): any {
+    const payload = req.user as { sub: string };
+    if (payload.sub !== ownerId) {
+      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok');
+    }
+    return this.offersService.findByOwner(ownerId);
   }
 
   // Teklifi kabul et
