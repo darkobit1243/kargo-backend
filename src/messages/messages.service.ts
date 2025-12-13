@@ -1,13 +1,22 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { Listing } from '../listings/listing.entity';
+import { Offer } from '../offers/offer.entity';
 import { Message } from './message.entity';
+import { User } from '../auth/user.entity';
 
 @Injectable()
 export class MessagesService {
   constructor(
     @InjectRepository(Message)
     private readonly messageRepository: Repository<Message>,
+    @InjectRepository(Offer)
+    private readonly offerRepository: Repository<Offer>,
+    @InjectRepository(Listing)
+    private readonly listingRepository: Repository<Listing>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   async create(payload: Omit<Message, 'id' | 'createdAt'>): Promise<Message> {
@@ -57,6 +66,38 @@ export class MessagesService {
       }
     }
     return Array.from(map.values());
+  }
+
+  async getCarrierContacts(ownerId: string) {
+    const listings = await this.listingRepository.find({ where: { ownerId } });
+    if (!listings.length) {
+      return [];
+    }
+    const listingMap = new Map(listings.map(listing => [listing.id, listing]));
+    const listingIds = listings.map(listing => listing.id);
+    const offers = await this.offerRepository.find({
+      where: { listingId: In(listingIds) },
+      order: { createdAt: 'DESC' },
+    });
+    const contacts = new Map<string, { carrierId: string; listingId: string; listingTitle: string }>();
+    for (const offer of offers) {
+      if (!contacts.has(offer.proposerId)) {
+        const listing = listingMap.get(offer.listingId);
+        contacts.set(offer.proposerId, {
+          carrierId: offer.proposerId,
+          listingId: offer.listingId,
+          listingTitle: listing?.title ?? 'Gönderi',
+        });
+      }
+    }
+    if (!contacts.size) return [];
+    const carrierIds = Array.from(contacts.keys());
+    const users = await this.userRepository.findByIds(carrierIds);
+    const userMap = new Map(users.map(user => [user.id, user.email]));
+    return Array.from(contacts.values()).map(entry => ({
+      ...entry,
+      carrierEmail: userMap.get(entry.carrierId) ?? 'Carrier',
+    }));
   }
 }
 

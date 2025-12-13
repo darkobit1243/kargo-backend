@@ -32,5 +32,11 @@ export class MessagesController {
     this.wsGateway.sendMessage(body.listingId, message);
     return message;
   }
+
+  @Get('contacts')
+  async contacts(@Req() req: Request) {
+    const payload = req.user as { sub: string };
+    return this.messagesService.getCarrierContacts(payload.sub);
+  }
 }
 
