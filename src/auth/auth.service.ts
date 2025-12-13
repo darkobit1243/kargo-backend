@@ -27,11 +27,23 @@ export class AuthService {
 
   private sanitize(user: User): AuthResponseUser {
     const { id, email, role, fullName, phone, address, vehicleType, vehiclePlate, serviceArea } = user;
-    return { id, email, role, fullName, phone, address, vehicleType, vehiclePlate, serviceArea };
+    const resolvedRole: UserRole = role ?? 'sender';
+    return {
+      id,
+      email,
+      role: resolvedRole,
+      fullName,
+      phone,
+      address,
+      vehicleType,
+      vehiclePlate,
+      serviceArea,
+    };
   }
 
   private signToken(user: User): string {
-    return this.jwtService.sign({ sub: user.id, email: user.email, role: user.role });
+    const resolvedRole: UserRole = user.role ?? 'sender';
+    return this.jwtService.sign({ sub: user.id, email: user.email, role: resolvedRole });
   }
 
   async register(user: RegisterUserDto): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
