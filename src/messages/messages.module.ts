@@ -4,9 +4,10 @@ import { Message } from './message.entity';
 import { MessagesController } from './messages.controller';
 import { MessagesService } from './messages.service';
 import { WsModule } from '../ws/ws.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Message]), WsModule],
+  imports: [TypeOrmModule.forFeature([Message]), WsModule, AuthModule],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],
