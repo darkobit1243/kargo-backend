@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
 import { Offer, OfferStatus } from './offer.entity';
 import { Delivery } from '../deliveries/delivery.entity';
