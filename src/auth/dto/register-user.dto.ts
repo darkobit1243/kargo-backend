@@ -20,6 +20,16 @@ export class RegisterUserDto {
   @IsNotEmpty()
   phone: string;
 
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+
+  @IsOptional()
+  rating?: number;
+
+  @IsOptional()
+  deliveredCount?: number;
+
   @ValidateIf(o => o.role === 'sender')
   @IsString()
   @IsNotEmpty()

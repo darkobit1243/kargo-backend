@@ -6,6 +6,7 @@ import { Offer, OfferStatus } from './offer.entity';
 import { Delivery } from '../deliveries/delivery.entity';
 import { Listing } from '../listings/listing.entity';
 import { Message } from '../messages/message.entity';
+import { User } from '../auth/user.entity';
 
 @Injectable()
 export class OffersService {
@@ -19,6 +20,8 @@ export class OffersService {
     private readonly listingsRepository: Repository<Listing>,
     @InjectRepository(Message)
     private readonly messagesRepository: Repository<Message>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
   ) {}
 
   // Teklif oluştur
@@ -58,18 +61,48 @@ export class OffersService {
   }
 
   // Teklifleri listele
-  async findByListing(listingId: string): Promise<Offer[]> {
-    return this.offersRepository.find({ where: { listingId } });
+  async findByListing(listingId: string): Promise<any[]> {
+    const offers = await this.offersRepository.find({ where: { listingId } });
+    if (!offers.length) return [];
+    const proposerIds = [...new Set(offers.map(o => o.proposerId))];
+    const users = await this.usersRepository.findByIds(proposerIds);
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    return offers.map(o => {
+      const user = userMap.get(o.proposerId);
+      return {
+        ...o,
+        proposerName: user?.fullName ?? user?.email ?? 'Taşıyıcı',
+        proposerAvatar: user?.avatarUrl ?? null,
+        proposerRating: user?.rating ?? null,
+        proposerDelivered: user?.deliveredCount ?? null,
+      };
+    });
   }
 
   // Owner'a ait tüm listinglerdeki teklifler
-  async findByOwner(ownerId: string): Promise<Offer[]> {
+  async findByOwner(ownerId: string): Promise<any[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
     if (!listings.length) return [];
     const listingIds = listings.map(l => l.id);
-    return this.offersRepository.find({
+    const offers = await this.offersRepository.find({
       where: { listingId: In(listingIds) },
       order: { createdAt: 'DESC' },
+    });
+    if (!offers.length) return [];
+    const proposerIds = [...new Set(offers.map(o => o.proposerId))];
+    const users = await this.usersRepository.findByIds(proposerIds);
+    const userMap = new Map(users.map(u => [u.id, u]));
+
+    return offers.map(o => {
+      const user = userMap.get(o.proposerId);
+      return {
+        ...o,
+        proposerName: user?.fullName ?? user?.email ?? 'Taşıyıcı',
+        proposerAvatar: user?.avatarUrl ?? null,
+        proposerRating: user?.rating ?? null,
+        proposerDelivered: user?.deliveredCount ?? null,
+      };
     });
   }
 

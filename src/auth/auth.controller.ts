@@ -25,4 +25,13 @@ export class AuthController {
     const payload = req.user as { sub: string };
     return this.authService.findById(payload.sub);
   }
+
+  @Get('users/:id')
+  @UseGuards(JwtAuthGuard)
+  async getUser(@Req() req: Request): Promise<any> {
+    const payload = req.user as { sub: string };
+    const id = (req.params as any).id as string;
+    // JWT doğrulandı; belirtilen id için kullanıcı döner
+    return this.authService.findById(id ?? payload.sub);
+  }
 }

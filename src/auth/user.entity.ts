@@ -34,6 +34,16 @@ export class User {
   @Column({ nullable: true })
   serviceArea?: string;
 
+  // Profil görselleri / istatistikler (opsiyonel)
+  @Column({ nullable: true })
+  avatarUrl?: string;
+
+  @Column({ type: 'float', nullable: true })
+  rating?: number;
+
+  @Column({ type: 'int', nullable: true })
+  deliveredCount?: number;
+
   @CreateDateColumn()
   createdAt: Date;
 
