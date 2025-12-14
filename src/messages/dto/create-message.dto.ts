@@ -16,7 +16,5 @@ export class CreateMessageDto {
   @IsString()
   @IsNotEmpty()
   carrierId: string;
-
-  fromCarrier: boolean;
 }
 
