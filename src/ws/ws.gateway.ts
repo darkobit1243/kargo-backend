@@ -29,9 +29,9 @@ export class WsGateway {
 
   @SubscribeMessage('sendMessage')
   async handleSendMessage(@MessageBody() payload: any, @ConnectedSocket() client: Socket) {
-    // payload: { listingId, senderId, carrierId, content, fromCarrier? }
+    // payload: { listingId, senderId, carrierId, content }
     if (!payload?.listingId || !payload?.content) return;
-    const fromCarrier = payload.fromCarrier === true;
+    const fromCarrier = payload.senderId && payload.carrierId && payload.senderId === payload.carrierId;
     const message = await this.messagesService.create({
       listingId: payload.listingId,
       senderId: payload.senderId,
