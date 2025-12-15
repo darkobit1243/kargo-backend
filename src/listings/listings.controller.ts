@@ -16,7 +16,12 @@ export class ListingsController {
   @Roles('sender')
   create(@Req() req: Request, @Body() dto: CreateListingDto) {
     const payload = req.user as { sub: string };
-    this.logger.log(`create listing payload: ${JSON.stringify(dto)}`);
+    const photosCount = Array.isArray(dto.photos) ? dto.photos.length : 0;
+    const firstPhotoSize =
+      photosCount > 0 && typeof dto.photos[0] === 'string' ? dto.photos[0].length : 0;
+    this.logger.log(
+      `create listing: title="${dto.title}" weight=${dto.weight} photos=${photosCount} firstPhotoSize=${firstPhotoSize}`,
+    );
     return this.listingsService.create(payload.sub, dto);
   }
 

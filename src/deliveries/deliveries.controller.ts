@@ -19,9 +19,21 @@ export class DeliveriesController {
   @Post(':id/pickup')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('carrier')
-  pickup(@Param('id') id: string, @Req() req: Request) {
+  pickup(@Param('id') id: string, @Req() req: Request, @Body() body: { qrToken?: string }) {
     const payload = req.user as { sub: string };
-    return this.deliveriesService.pickup(id, payload.sub);
+    return this.deliveriesService.pickup(id, payload.sub, body?.qrToken);
+  }
+
+  @Post(':id/location')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  updateLocation(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: { lat: number; lng: number },
+  ) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.updateLocation(id, payload.sub, Number(body.lat), Number(body.lng));
   }
 
   @Post(':id/deliver')

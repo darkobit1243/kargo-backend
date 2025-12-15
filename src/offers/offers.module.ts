@@ -9,9 +9,10 @@ import { Listing } from '../listings/listing.entity';
 import { Message } from '../messages/message.entity';
 import { User } from '../auth/user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [WsModule, TypeOrmModule.forFeature([Offer, Delivery, Listing, Message, User]), AuthModule],
+  imports: [WsModule, TypeOrmModule.forFeature([Offer, Delivery, Listing, Message, User]), AuthModule, PushModule],
   controllers: [OffersController],
   providers: [OffersService],
 })

@@ -2,10 +2,15 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { Request, Response } from 'express';
+import * as express from 'express';
 import db from '../db';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Base64 foto gibi büyük JSON payload'lar için limitleri yükselt.
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
   // Global validation pipeline
   app.useGlobalPipes(

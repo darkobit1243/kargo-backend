@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
@@ -15,20 +15,32 @@ export class DeliveriesService {
     private readonly listingsRepository: Repository<Listing>,
   ) {}
 
+  private generateQrToken(): string {
+    // Short, URL-safe token (no external dependency).
+    const rnd = () => Math.random().toString(36).slice(2);
+    return `${rnd()}${rnd()}`.slice(0, 24);
+  }
+
   async create(dto: { listingId: string }): Promise<Delivery> {
     const delivery = this.deliveriesRepository.create({
       listingId: dto.listingId,
       status: 'pickup_pending',
+      pickupQrToken: this.generateQrToken(),
+      trackingEnabled: false,
     });
     return this.deliveriesRepository.save(delivery);
   }
 
-  async pickup(id: string, carrierId: string): Promise<Delivery | null> {
+  async pickup(id: string, carrierId: string, qrToken?: string): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (delivery && delivery.status === 'pickup_pending') {
+      if (!qrToken || !delivery.pickupQrToken || qrToken !== delivery.pickupQrToken) {
+        throw new BadRequestException('QR doğrulaması gerekli');
+      }
       delivery.carrierId = carrierId;
       delivery.status = 'in_transit';
       delivery.pickupAt = new Date();
+      delivery.trackingEnabled = true;
       const saved = await this.deliveriesRepository.save(delivery);
       this.wsGateway.sendDeliveryUpdate(id, saved);
       return saved;
@@ -46,6 +58,28 @@ export class DeliveriesService {
       return saved;
     }
     return delivery ?? null;
+  }
+
+  async updateLocation(id: string, carrierId: string, lat: number, lng: number): Promise<Delivery> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.carrierId && delivery.carrierId !== carrierId) {
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+    }
+    if (delivery.status !== 'in_transit') {
+      throw new BadRequestException('Konum güncelleme yalnızca yoldayken yapılabilir');
+    }
+    if (!delivery.trackingEnabled) {
+      throw new BadRequestException('Canlı takip aktif değil');
+    }
+    delivery.lastLat = lat;
+    delivery.lastLng = lng;
+    delivery.lastLocationAt = new Date();
+    const saved = await this.deliveriesRepository.save(delivery);
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+    return saved;
   }
 
   async findOne(id: string): Promise<Delivery | null> {

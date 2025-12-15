@@ -26,6 +26,15 @@ export class AuthController {
     return this.authService.findById(payload.sub);
   }
 
+  // Push notification token (FCM)
+  @Post('fcm-token')
+  @UseGuards(JwtAuthGuard)
+  async setFcmToken(@Req() req: Request, @Body() body: { token?: string | null }): Promise<{ ok: true }> {
+    const payload = req.user as { sub: string };
+    await this.authService.updateFcmToken(payload.sub, body?.token ?? null);
+    return { ok: true };
+  }
+
   @Get('users/:id')
   @UseGuards(JwtAuthGuard)
   async getUser(@Req() req: Request): Promise<any> {

@@ -7,6 +7,14 @@ export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // Human-friendly sequential ID (unique). Assigned on first read/registration.
+  @Column({ type: 'int', unique: true, nullable: true })
+  publicId?: number;
+
+  // FCM device token for push notifications (optional)
+  @Column({ type: 'text', nullable: true })
+  fcmToken?: string | null;
+
   @Column({ unique: true })
   email: string;
 

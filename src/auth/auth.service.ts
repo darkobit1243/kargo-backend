@@ -8,6 +8,7 @@ import { RegisterUserDto } from './dto/register-user.dto';
 
 export type AuthResponseUser = {
   id: string;
+  publicId?: number;
   email: string;
   role: UserRole;
   fullName?: string;
@@ -26,10 +27,11 @@ export class AuthService {
   ) {}
 
   private sanitize(user: User): AuthResponseUser {
-    const { id, email, role, fullName, phone, address, vehicleType, vehiclePlate, serviceArea } = user;
+    const { id, publicId, email, role, fullName, phone, address, vehicleType, vehiclePlate, serviceArea } = user;
     const resolvedRole: UserRole = role ?? 'sender';
     return {
       id,
+      publicId,
       email,
       role: resolvedRole,
       fullName,
@@ -39,6 +41,30 @@ export class AuthService {
       vehiclePlate,
       serviceArea,
     };
+  }
+
+  private async ensurePublicId(userId: string): Promise<User> {
+    const existing = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!existing) {
+      throw new NotFoundException('User not found');
+    }
+    if (existing.publicId != null) return existing;
+
+    // Lazily assign a sequential publicId with a table lock to avoid duplicates.
+    return this.usersRepository.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(User);
+      const fresh = await repo.findOne({ where: { id: userId } });
+      if (!fresh) {
+        throw new NotFoundException('User not found');
+      }
+      if (fresh.publicId != null) return fresh;
+
+      await manager.query('LOCK TABLE users IN EXCLUSIVE MODE');
+      const rows = await manager.query('SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users');
+      const next = Number(rows?.[0]?.next ?? 1);
+      fresh.publicId = next;
+      return repo.save(fresh);
+    });
   }
 
   private signToken(user: User): string {
@@ -67,7 +93,16 @@ export class AuthService {
       vehiclePlate: user.vehiclePlate,
       serviceArea: user.serviceArea,
     });
-    const saved = await this.usersRepository.save(newUser);
+
+    // Assign sequential publicId at creation time.
+    const saved = await this.usersRepository.manager.transaction(async (manager) => {
+      await manager.query('LOCK TABLE users IN EXCLUSIVE MODE');
+      const rows = await manager.query('SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users');
+      const next = Number(rows?.[0]?.next ?? 1);
+      const repo = manager.getRepository(User);
+      const created = repo.create({ ...newUser, publicId: next });
+      return repo.save(created);
+    });
     return {
       token: this.signToken(saved),
       role: saved.role,
@@ -98,10 +133,16 @@ export class AuthService {
   }
 
   async findById(id: string): Promise<AuthResponseUser> {
-    const user = await this.usersRepository.findOne({ where: { id } });
+    const user = await this.ensurePublicId(id);
+    return this.sanitize(user);
+  }
+
+  async updateFcmToken(userId: string, token: string | null): Promise<void> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) {
       throw new NotFoundException('User not found');
     }
-    return this.sanitize(user);
+    user.fcmToken = token && token.trim().length > 0 ? token.trim() : null;
+    await this.usersRepository.save(user);
   }
 }

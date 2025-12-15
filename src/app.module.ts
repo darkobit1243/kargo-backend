@@ -15,6 +15,7 @@ import { User } from './auth/user.entity';
 import { Listing } from './listings/listing.entity';
 import { Offer } from './offers/offer.entity';
 import { Delivery } from './deliveries/delivery.entity';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { Delivery } from './deliveries/delivery.entity';
     WsModule,
     MessagesModule,
     RatingsModule,
+    PushModule,
   ],
   controllers: [AppController],
   providers: [AppService],

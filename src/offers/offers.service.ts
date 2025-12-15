@@ -7,11 +7,13 @@ import { Delivery } from '../deliveries/delivery.entity';
 import { Listing } from '../listings/listing.entity';
 import { Message } from '../messages/message.entity';
 import { User } from '../auth/user.entity';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class OffersService {
   constructor(
     private wsGateway: WsGateway,
+    private readonly pushService: PushService,
     @InjectRepository(Offer)
     private readonly offersRepository: Repository<Offer>,
     @InjectRepository(Delivery)
@@ -57,6 +59,27 @@ export class OffersService {
     const savedMessage = await this.messagesRepository.save(message);
     this.wsGateway.sendMessage(dto.listingId, savedMessage);
     this.wsGateway.sendOfferNotification(dto.listingId, saved);
+
+    // Push notification to sender (listing owner)
+    try {
+      const owner = await this.usersRepository.findOne({ where: { id: listing.ownerId } });
+      const token = owner?.fcmToken;
+      if (token) {
+        await this.pushService.sendToToken({
+          token,
+          title: 'Yeni Teklif',
+          body: `"${listing.title ?? 'Kargo'}" için ${dto.amount} TL teklif geldi.`,
+          data: {
+            type: 'offer',
+            listingId: dto.listingId,
+            offerId: saved.id,
+          },
+        });
+      }
+    } catch (_) {
+      // Ignore push failures.
+    }
+
     return saved;
   }
 
@@ -141,10 +164,14 @@ export class OffersService {
       });
 
       if (!delivery) {
+        const rnd = () => Math.random().toString(36).slice(2);
+        const pickupQrToken = `${rnd()}${rnd()}`.slice(0, 24);
         delivery = this.deliveriesRepository.create({
           listingId: accepted.listingId,
           carrierId: accepted.proposerId,
           status: 'pickup_pending',
+          pickupQrToken,
+          trackingEnabled: false,
         });
         await this.deliveriesRepository.save(delivery);
       }

@@ -33,6 +33,23 @@ export class Delivery {
 
   @Column({ type: 'timestamptz', nullable: true })
   deliveredAt?: Date;
+
+  // Sender shows this QR token; carrier must scan and provide it to pick up.
+  @Column({ nullable: true })
+  pickupQrToken?: string;
+
+  // Live tracking becomes active after successful QR-validated pickup.
+  @Column({ type: 'boolean', default: false })
+  trackingEnabled: boolean;
+
+  @Column({ type: 'float', nullable: true })
+  lastLat?: number;
+
+  @Column({ type: 'float', nullable: true })
+  lastLng?: number;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastLocationAt?: Date;
 }
 
 
