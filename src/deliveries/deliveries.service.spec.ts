@@ -1,18 +1,88 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { DeliveriesService } from './deliveries.service';
+import { WsGateway } from '../ws/ws.gateway';
+import { Delivery } from './delivery.entity';
+import { Listing } from '../listings/listing.entity';
+import { User } from '../auth/user.entity';
 
 describe('DeliveriesService', () => {
   let service: DeliveriesService;
 
+  const wsGateway = {
+    sendDeliveryUpdate: jest.fn(),
+    sendOfferNotification: jest.fn(),
+    sendMessage: jest.fn(),
+  };
+
+  const deliveriesRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  };
+
+  const listingsRepository = {
+    find: jest.fn(),
+    findOne: jest.fn(),
+  };
+
+  const usersRepository = {
+    createQueryBuilder: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [DeliveriesService],
+      providers: [
+        DeliveriesService,
+        { provide: WsGateway, useValue: wsGateway },
+        { provide: getRepositoryToken(Delivery), useValue: deliveriesRepository },
+        { provide: getRepositoryToken(Listing), useValue: listingsRepository },
+        { provide: getRepositoryToken(User), useValue: usersRepository },
+      ],
     }).compile();
 
     service = module.get<DeliveriesService>(DeliveriesService);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('deliver should forbid when carrierId mismatches', async () => {
+    deliveriesRepository.findOne.mockResolvedValue({
+      id: 'd1',
+      status: 'in_transit',
+      carrierId: 'carrier_a',
+      listingId: 'l1',
+    });
+
+    await expect(service.deliver('d1', 'carrier_b')).rejects.toThrow('Bu teslimatın taşıyıcısı değilsiniz');
+  });
+
+  it('deliver should set delivered and bump deliveredCount for carrier and owner', async () => {
+    const delivery = {
+      id: 'd1',
+      status: 'in_transit',
+      carrierId: 'carrier_a',
+      listingId: 'l1',
+    };
+    deliveriesRepository.findOne.mockResolvedValue(delivery);
+    deliveriesRepository.save.mockImplementation(async (d: any) => d);
+    listingsRepository.findOne.mockResolvedValue({ id: 'l1', ownerId: 'owner_a' });
+
+    const qb = {
+      update: jest.fn().mockReturnThis(),
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      execute: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
+    usersRepository.createQueryBuilder.mockReturnValue(qb);
+
+    const result = await service.deliver('d1', 'carrier_a');
+    expect(result?.status).toBe('delivered');
+    expect(wsGateway.sendDeliveryUpdate).toHaveBeenCalled();
+    expect(usersRepository.createQueryBuilder).toHaveBeenCalledTimes(2);
   });
 });

@@ -39,8 +39,9 @@ export class DeliveriesController {
   @Post(':id/deliver')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('carrier')
-  deliver(@Param('id') id: string) {
-    return this.deliveriesService.deliver(id);
+  deliver(@Param('id') id: string, @Req() req: Request) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.deliver(id, payload.sub);
   }
 
   @Get('by-listing/:listingId')

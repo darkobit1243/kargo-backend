@@ -16,6 +16,7 @@ import { Listing } from './listings/listing.entity';
 import { Offer } from './offers/offer.entity';
 import { Delivery } from './deliveries/delivery.entity';
 import { PushModule } from './push/push.module';
+import { Rating } from './ratings/rating.entity';
 
 @Module({
   imports: [
@@ -35,7 +36,7 @@ import { PushModule } from './push/push.module';
         return {
           type: 'postgres',
           url,
-          entities: [User, Listing, Offer, Delivery, Message],
+          entities: [User, Listing, Offer, Delivery, Message, Rating],
           synchronize: config.get<string>('DB_SYNC', 'true') === 'true',
           ssl: sslEnabled ? { rejectUnauthorized: false } : false,
         };

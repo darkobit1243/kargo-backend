@@ -3,14 +3,6 @@ import { IsString, IsNotEmpty, IsNumber, Min, Max, IsOptional } from 'class-vali
 export class CreateRatingDto {
   @IsString()
   @IsNotEmpty()
-  fromUserId: string; // Puan veren
-
-  @IsString()
-  @IsNotEmpty()
-  toUserId: string; // Puan alan
-
-  @IsString()
-  @IsNotEmpty()
   deliveryId: string; // İlgili teslimat
 
   @IsNumber()

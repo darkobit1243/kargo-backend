@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
 import { Delivery } from './delivery.entity';
 import { Listing } from '../listings/listing.entity';
+import { User } from '../auth/user.entity';
 
 @Injectable()
 export class DeliveriesService {
@@ -13,7 +14,20 @@ export class DeliveriesService {
     private readonly deliveriesRepository: Repository<Delivery>,
     @InjectRepository(Listing)
     private readonly listingsRepository: Repository<Listing>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
   ) {}
+
+  private async bumpDeliveredCount(userId: string): Promise<void> {
+    await this.usersRepository
+      .createQueryBuilder()
+      .update(User)
+      .set({
+        deliveredCount: () => 'COALESCE("deliveredCount", 0) + 1',
+      })
+      .where('id = :id', { id: userId })
+      .execute();
+  }
 
   private generateQrToken(): string {
     // Short, URL-safe token (no external dependency).
@@ -48,12 +62,27 @@ export class DeliveriesService {
     return delivery ?? null;
   }
 
-  async deliver(id: string): Promise<Delivery | null> {
+  async deliver(id: string, carrierId: string): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (delivery && delivery.status === 'in_transit') {
+      if (delivery.carrierId && delivery.carrierId !== carrierId) {
+        throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+      }
+      if (!delivery.carrierId) {
+        throw new BadRequestException('Teslimatın taşıyıcısı yok');
+      }
+
       delivery.status = 'delivered';
       delivery.deliveredAt = new Date();
       const saved = await this.deliveriesRepository.save(delivery);
+
+      // Update delivery stats
+      await this.bumpDeliveredCount(delivery.carrierId);
+      const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+      if (listing?.ownerId) {
+        await this.bumpDeliveredCount(listing.ownerId);
+      }
+
       this.wsGateway.sendDeliveryUpdate(id, saved);
       return saved;
     }
