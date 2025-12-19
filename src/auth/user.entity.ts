@@ -33,6 +33,19 @@ export class User {
   @Column({ nullable: true })
   address?: string;
 
+  // Sender company info (required for sender onboarding)
+  @Column({ nullable: true })
+  companyName?: string;
+
+  @Column({ nullable: true })
+  taxNumber?: string;
+
+  @Column({ nullable: true })
+  taxOffice?: string;
+
+  @Column({ nullable: true })
+  activityArea?: string;
+
   @Column({ nullable: true })
   vehicleType?: string;
 
@@ -42,8 +55,21 @@ export class User {
   @Column({ nullable: true })
   serviceArea?: string;
 
-  // Profil görselleri / istatistikler (opsiyonel)
+  // Sender company info (optional; required in UI after OTP for senders)
   @Column({ nullable: true })
+  companyName?: string;
+
+  @Column({ nullable: true })
+  taxNumber?: string;
+
+  @Column({ nullable: true })
+  taxOffice?: string;
+
+  @Column({ nullable: true })
+  activityArea?: string;
+
+  // Profil görselleri / istatistikler (opsiyonel)
+  @Column({ type: 'text', nullable: true })
   avatarUrl?: string;
 
   @Column({ type: 'float', nullable: true })

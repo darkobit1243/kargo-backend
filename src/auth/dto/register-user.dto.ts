@@ -20,21 +20,38 @@ export class RegisterUserDto {
   @IsNotEmpty()
   phone: string;
 
-  @IsOptional()
-  @IsString()
-  avatarUrl?: string;
-
-  @IsOptional()
-  rating?: number;
-
-  @IsOptional()
-  deliveredCount?: number;
-
+  // Sender required fields
   @ValidateIf(o => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   address?: string;
 
+  @ValidateIf(o => o.role === 'sender')
+  @IsString()
+  @IsNotEmpty()
+  companyName?: string;
+
+  @ValidateIf(o => o.role === 'sender')
+  @IsString()
+  @IsNotEmpty()
+  taxNumber?: string;
+
+  @ValidateIf(o => o.role === 'sender')
+  @IsString()
+  @IsNotEmpty()
+  taxOffice?: string;
+
+  @ValidateIf(o => o.role === 'sender')
+  @IsString()
+  @IsNotEmpty()
+  activityArea?: string;
+
+  @ValidateIf(o => o.role === 'sender')
+  @IsString()
+  @IsNotEmpty()
+  avatarUrl?: string;
+
+  // Carrier required fields
   @ValidateIf(o => o.role === 'carrier')
   @IsString()
   @IsNotEmpty()
@@ -42,10 +59,18 @@ export class RegisterUserDto {
 
   @ValidateIf(o => o.role === 'carrier')
   @IsString()
+  @IsNotEmpty()
   vehiclePlate?: string;
 
   @IsOptional()
   @IsString()
   serviceArea?: string;
+
+  // Optional stats
+  @IsOptional()
+  rating?: number;
+
+  @IsOptional()
+  deliveredCount?: number;
 }
 

@@ -14,9 +14,14 @@ export type AuthResponseUser = {
   fullName?: string;
   phone?: string;
   address?: string;
+  companyName?: string;
+  taxNumber?: string;
+  taxOffice?: string;
+  activityArea?: string;
   vehicleType?: string;
   vehiclePlate?: string;
   serviceArea?: string;
+  avatarUrl?: string;
 };
 
 @Injectable()
@@ -27,7 +32,23 @@ export class AuthService {
   ) {}
 
   private sanitize(user: User): AuthResponseUser {
-    const { id, publicId, email, role, fullName, phone, address, vehicleType, vehiclePlate, serviceArea } = user;
+    const {
+      id,
+      publicId,
+      email,
+      role,
+      fullName,
+      phone,
+      address,
+      companyName,
+      taxNumber,
+      taxOffice,
+      activityArea,
+      vehicleType,
+      vehiclePlate,
+      serviceArea,
+      avatarUrl,
+    } = user;
     const resolvedRole: UserRole = role ?? 'sender';
     return {
       id,
@@ -37,9 +58,14 @@ export class AuthService {
       fullName,
       phone,
       address,
+      companyName,
+      taxNumber,
+      taxOffice,
+      activityArea,
       vehicleType,
       vehiclePlate,
       serviceArea,
+      avatarUrl,
     };
   }
 
@@ -89,6 +115,10 @@ export class AuthService {
       rating: user.rating,
       deliveredCount: user.deliveredCount,
       address: user.address,
+      companyName: user.companyName,
+      taxNumber: user.taxNumber,
+      taxOffice: user.taxOffice,
+      activityArea: user.activityArea,
       vehicleType: user.vehicleType,
       vehiclePlate: user.vehiclePlate,
       serviceArea: user.serviceArea,

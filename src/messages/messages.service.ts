@@ -93,10 +93,11 @@ export class MessagesService {
     if (!contacts.size) return [];
     const carrierIds = Array.from(contacts.keys());
     const users = await this.userRepository.findByIds(carrierIds);
-    const userMap = new Map(users.map(user => [user.id, user.email]));
+    const userMap = new Map(users.map(user => [user.id, { email: user.email, fullName: user.fullName }]));
     return Array.from(contacts.values()).map(entry => ({
       ...entry,
-      carrierEmail: userMap.get(entry.carrierId) ?? 'Carrier',
+      carrierEmail: userMap.get(entry.carrierId)?.email ?? 'Carrier',
+      carrierName: userMap.get(entry.carrierId)?.fullName ?? userMap.get(entry.carrierId)?.email ?? 'Carrier',
     }));
   }
 
