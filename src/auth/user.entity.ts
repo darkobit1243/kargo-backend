@@ -55,19 +55,6 @@ export class User {
   @Column({ nullable: true })
   serviceArea?: string;
 
-  // Sender company info (optional; required in UI after OTP for senders)
-  @Column({ nullable: true })
-  companyName?: string;
-
-  @Column({ nullable: true })
-  taxNumber?: string;
-
-  @Column({ nullable: true })
-  taxOffice?: string;
-
-  @Column({ nullable: true })
-  activityArea?: string;
-
   // Profil görselleri / istatistikler (opsiyonel)
   @Column({ type: 'text', nullable: true })
   avatarUrl?: string;
