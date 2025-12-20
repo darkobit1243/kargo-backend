@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { User } from './user.entity';
 
@@ -28,12 +29,17 @@ describe('AuthService', () => {
     sign: jest.fn(),
   };
 
+  const configService = {
+    get: jest.fn((_key: string, defaultValue?: any) => defaultValue),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         { provide: getRepositoryToken(User), useValue: usersRepository },
         { provide: JwtService, useValue: jwtService },
+        { provide: ConfigService, useValue: configService },
       ],
     }).compile();
 

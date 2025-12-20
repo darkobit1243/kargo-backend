@@ -21,9 +21,8 @@ export class RegisterUserDto {
   phone: string;
 
   // Sender required fields
-  @ValidateIf(o => o.role === 'sender')
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   address?: string;
 
   @ValidateIf(o => o.role === 'sender')
@@ -45,6 +44,23 @@ export class RegisterUserDto {
   @IsString()
   @IsNotEmpty()
   activityArea?: string;
+
+  // Sender location (optional but recommended)
+  @IsOptional()
+  @IsString()
+  cityId?: string;
+
+  @IsOptional()
+  @IsString()
+  districtId?: string;
+
+  @IsOptional()
+  @IsString()
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  district?: string;
 
   @ValidateIf(o => o.role === 'sender')
   @IsString()

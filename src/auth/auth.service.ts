@@ -1,4 +1,5 @@
 import { Injectable, ConflictException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -17,6 +18,10 @@ export type AuthResponseUser = {
   companyName?: string;
   taxNumber?: string;
   taxOffice?: string;
+  cityId?: string;
+  districtId?: string;
+  city?: string;
+  district?: string;
   activityArea?: string;
   vehicleType?: string;
   vehiclePlate?: string;
@@ -29,6 +34,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly usersRepository: Repository<User>,
     private readonly jwtService: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
   private sanitize(user: User): AuthResponseUser {
@@ -43,6 +49,10 @@ export class AuthService {
       companyName,
       taxNumber,
       taxOffice,
+      cityId,
+      districtId,
+      city,
+      district,
       activityArea,
       vehicleType,
       vehiclePlate,
@@ -61,6 +71,10 @@ export class AuthService {
       companyName,
       taxNumber,
       taxOffice,
+      cityId,
+      districtId,
+      city,
+      district,
       activityArea,
       vehicleType,
       vehiclePlate,
@@ -99,6 +113,26 @@ export class AuthService {
   }
 
   async register(user: RegisterUserDto): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
+    if (this.config.get<string>('AUTH_LOG_REGISTER', 'false') === 'true') {
+      // eslint-disable-next-line no-console
+      console.log('[AUTH] register payload', {
+        email: user.email,
+        role: user.role,
+        fullName: user.fullName,
+        phone: user.phone,
+        address: user.address,
+        companyName: user.companyName,
+        taxNumber: user.taxNumber,
+        taxOffice: user.taxOffice,
+        activityArea: user.activityArea,
+        cityId: user.cityId,
+        districtId: user.districtId,
+        city: user.city,
+        district: user.district,
+        hasAvatarUrl: Boolean(user.avatarUrl),
+      });
+    }
+
     const existing = await this.usersRepository.findOne({ where: { email: user.email } });
     if (existing) {
       throw new ConflictException('Email already in use');
@@ -118,6 +152,10 @@ export class AuthService {
       companyName: user.companyName,
       taxNumber: user.taxNumber,
       taxOffice: user.taxOffice,
+      cityId: user.cityId,
+      districtId: user.districtId,
+      city: user.city,
+      district: user.district,
       activityArea: user.activityArea,
       vehicleType: user.vehicleType,
       vehiclePlate: user.vehiclePlate,

@@ -44,6 +44,18 @@ export class User {
   taxOffice?: string;
 
   @Column({ nullable: true })
+  cityId?: string;
+
+  @Column({ nullable: true })
+  districtId?: string;
+
+  @Column({ nullable: true })
+  city?: string;
+
+  @Column({ nullable: true })
+  district?: string;
+
+  @Column({ nullable: true })
   activityArea?: string;
 
   @Column({ nullable: true })
