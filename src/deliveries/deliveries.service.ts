@@ -120,13 +120,38 @@ export class DeliveriesService {
   }
 
   async findByCarrier(carrierId: string): Promise<Delivery[]> {
-    return this.deliveriesRepository.find({ where: { carrierId } });
+    const deliveries = await this.deliveriesRepository.find({ where: { carrierId } });
+    const toFix = deliveries
+      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().isEmpty))
+      .map(d => {
+        // eslint-disable-next-line no-param-reassign
+        d.pickupQrToken = this.generateQrToken();
+        return d;
+      });
+    if (toFix.isNotEmpty) {
+      await this.deliveriesRepository.save(toFix);
+    }
+    return deliveries;
   }
 
   async findByOwner(ownerId: string): Promise<Delivery[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
     if (!listings.length) return [];
     const listingIds = listings.map(l => l.id);
-    return this.deliveriesRepository.find({ where: { listingId: In(listingIds) } });
+    const deliveries = await this.deliveriesRepository.find({ where: { listingId: In(listingIds) } });
+
+    // Backfill: older rows may have null pickupQrToken (sender then can't show QR).
+    const toFix = deliveries
+      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().isEmpty))
+      .map(d => {
+        // eslint-disable-next-line no-param-reassign
+        d.pickupQrToken = this.generateQrToken();
+        return d;
+      });
+    if (toFix.isNotEmpty) {
+      await this.deliveriesRepository.save(toFix);
+    }
+
+    return deliveries;
   }
 }
