@@ -163,16 +163,28 @@ export class OffersService {
         where: { listingId: accepted.listingId },
       });
 
+      // NOTE: DB'de daha önce oluşmuş delivery varsa (özellikle eski sürüm/kolon null),
+      // pickupQrToken boş kalabiliyor ve gönderici QR göremiyor.
+      // Bu yüzden delivery var olsa bile pickup_pending aşamasında token'ı garanti et.
+      const rnd = () => Math.random().toString(36).slice(2);
+      const generateToken = () => `${rnd()}${rnd()}`.slice(0, 24);
+
       if (!delivery) {
-        const rnd = () => Math.random().toString(36).slice(2);
-        const pickupQrToken = `${rnd()}${rnd()}`.slice(0, 24);
         delivery = this.deliveriesRepository.create({
           listingId: accepted.listingId,
           carrierId: accepted.proposerId,
           status: 'pickup_pending',
-          pickupQrToken,
+          pickupQrToken: generateToken(),
           trackingEnabled: false,
         });
+        await this.deliveriesRepository.save(delivery);
+      } else if (delivery.status === 'pickup_pending') {
+        // Ensure correct carrier + token while waiting for pickup.
+        delivery.carrierId = accepted.proposerId;
+        if (!delivery.pickupQrToken) {
+          delivery.pickupQrToken = generateToken();
+        }
+        delivery.trackingEnabled = false;
         await this.deliveriesRepository.save(delivery);
       }
     }
