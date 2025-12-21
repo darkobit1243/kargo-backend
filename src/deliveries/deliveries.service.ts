@@ -122,13 +122,13 @@ export class DeliveriesService {
   async findByCarrier(carrierId: string): Promise<Delivery[]> {
     const deliveries = await this.deliveriesRepository.find({ where: { carrierId } });
     const toFix = deliveries
-      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().isEmpty))
+      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().length === 0))
       .map(d => {
         // eslint-disable-next-line no-param-reassign
         d.pickupQrToken = this.generateQrToken();
         return d;
       });
-    if (toFix.isNotEmpty) {
+    if (toFix.length > 0) {
       await this.deliveriesRepository.save(toFix);
     }
     return deliveries;
@@ -142,13 +142,13 @@ export class DeliveriesService {
 
     // Backfill: older rows may have null pickupQrToken (sender then can't show QR).
     const toFix = deliveries
-      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().isEmpty))
+      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().length === 0))
       .map(d => {
         // eslint-disable-next-line no-param-reassign
         d.pickupQrToken = this.generateQrToken();
         return d;
       });
-    if (toFix.isNotEmpty) {
+    if (toFix.length > 0) {
       await this.deliveriesRepository.save(toFix);
     }
 
