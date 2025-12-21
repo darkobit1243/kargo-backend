@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
@@ -83,6 +83,16 @@ export class OffersService {
     return saved;
   }
 
+  private async assertListingOwnedBy(listingId: string, ownerId: string): Promise<void> {
+    const listing = await this.listingsRepository.findOne({ where: { id: listingId } });
+    if (!listing) {
+      throw new BadRequestException('Listing bulunamadı');
+    }
+    if (listing.ownerId !== ownerId) {
+      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok');
+    }
+  }
+
   // Teklifleri listele
   async findByListing(listingId: string): Promise<any[]> {
     const offers = await this.offersRepository.find({ where: { listingId } });
@@ -101,6 +111,12 @@ export class OffersService {
         proposerDelivered: user?.deliveredCount ?? null,
       };
     });
+  }
+
+  // Sadece listing sahibi (sender) için listing teklifler
+  async findByListingForOwner(listingId: string, ownerId: string): Promise<any[]> {
+    await this.assertListingOwnedBy(listingId, ownerId);
+    return this.findByListing(listingId);
   }
 
   // Owner'a ait tüm listinglerdeki teklifler
@@ -130,17 +146,22 @@ export class OffersService {
   }
 
   // Teklifi reddet
-  async rejectOffer(id: string): Promise<Offer | null> {
+  async rejectOffer(id: string, ownerId: string): Promise<Offer | null> {
     const offer = await this.offersRepository.findOne({ where: { id } });
     if (!offer) return null;
+
+    await this.assertListingOwnedBy(offer.listingId, ownerId);
+
     offer.status = 'rejected';
     return this.offersRepository.save(offer);
   }
 
   // Teklifi kabul et
-  async acceptOffer(id: string): Promise<Offer | null> {
+  async acceptOffer(id: string, ownerId: string): Promise<Offer | null> {
     const offer = await this.offersRepository.findOne({ where: { id } });
     if (!offer) return null;
+
+    await this.assertListingOwnedBy(offer.listingId, ownerId);
 
     // Aynı listing için daha önce kabul edilmiş teklif varsa hepsini reddet
     const offersForListing = await this.offersRepository.find({

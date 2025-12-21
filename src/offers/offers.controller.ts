@@ -25,8 +25,11 @@ export class OffersController {
 
   // Belirli listingId'ye ait teklifleri getir
   @Get('listing/:listingId')
-  findByListing(@Param('listingId') listingId: string): any {
-    return this.offersService.findByListing(listingId);
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender')
+  findByListing(@Param('listingId') listingId: string, @Req() req: Request): any {
+    const payload = req.user as { sub: string };
+    return this.offersService.findByListingForOwner(listingId, payload.sub);
   }
 
   // Owner'ın tüm ilanlarındaki teklifler
@@ -45,15 +48,17 @@ export class OffersController {
   @Post('accept/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('sender')
-  accept(@Param('id') id: string): any {
-    return this.offersService.acceptOffer(id);
+  accept(@Param('id') id: string, @Req() req: Request): any {
+    const payload = req.user as { sub: string };
+    return this.offersService.acceptOffer(id, payload.sub);
   }
 
   // Teklifi reddet
   @Post('reject/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('sender')
-  reject(@Param('id') id: string): any {
-    return this.offersService.rejectOffer(id);
+  reject(@Param('id') id: string, @Req() req: Request): any {
+    const payload = req.user as { sub: string };
+    return this.offersService.rejectOffer(id, payload.sub);
   }
 }

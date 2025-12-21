@@ -16,6 +16,7 @@ describe('OffersController', () => {
           useValue: {
             create: jest.fn(),
             findByListing: jest.fn(),
+            findByListingForOwner: jest.fn(),
             findByOwner: jest.fn(),
             acceptOffer: jest.fn(),
             rejectOffer: jest.fn(),
