@@ -8,6 +8,8 @@ export class PushService {
   private initialized = false;
   private enabled = false;
 
+  private static readonly kDefaultAndroidChannelId = 'bitasi_default';
+
   constructor(private readonly config: ConfigService) {
     this.init();
   }
@@ -55,6 +57,14 @@ export class PushService {
         notification: {
           title: params.title,
           body: params.body,
+        },
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: PushService.kDefaultAndroidChannelId,
+            clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+            sound: 'default',
+          },
         },
         data: params.data,
       });
