@@ -8,9 +8,10 @@ import { AuthModule } from '../auth/auth.module';
 import { Offer } from '../offers/offer.entity';
 import { Listing } from '../listings/listing.entity';
 import { User } from '../auth/user.entity';
+import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Message, Offer, Listing, User]), WsModule, AuthModule],
+  imports: [TypeOrmModule.forFeature([Message, Offer, Listing, User]), WsModule, AuthModule, PushModule],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],

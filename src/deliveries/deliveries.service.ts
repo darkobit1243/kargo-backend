@@ -188,7 +188,7 @@ export class DeliveriesService {
       ownerId: listing?.ownerId ?? null,
       carrierId: saved.carrierId ?? null,
       title: 'Kapıda',
-      body: 'Taşıyıcı adrese geldi.',
+      body: `${listing?.title ?? 'Gönderi'} için taşıyıcı adrese ulaştı.`,
     });
 
     return saved;
@@ -224,8 +224,8 @@ export class DeliveriesService {
         listingId: saved.listingId,
         ownerId: listing?.ownerId ?? null,
         carrierId: saved.carrierId ?? null,
-        title: 'Teslim',
-        body: 'Teslimat tamamlandı.',
+          title: 'Teslim edildi',
+          body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
       });
 
       return saved;
@@ -274,8 +274,8 @@ export class DeliveriesService {
       listingId: saved.listingId,
       ownerId: listing?.ownerId ?? null,
       carrierId: saved.carrierId ?? null,
-      title: 'Teslim',
-      body: 'Teslimat tamamlandı.',
+        title: 'Teslim edildi',
+        body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
     });
 
     return saved;

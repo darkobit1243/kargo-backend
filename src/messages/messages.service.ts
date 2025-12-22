@@ -5,6 +5,7 @@ import { Listing } from '../listings/listing.entity';
 import { Offer } from '../offers/offer.entity';
 import { Message } from './message.entity';
 import { User } from '../auth/user.entity';
+import { PushService } from '../push/push.service';
 
 @Injectable()
 export class MessagesService {
@@ -17,11 +18,60 @@ export class MessagesService {
     private readonly listingRepository: Repository<Listing>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly pushService: PushService,
   ) {}
+
+  private isOfferSystemMessage(message: Pick<Message, 'content'>): boolean {
+    const c = (message?.content ?? '').trim();
+    if (!c) return false;
+    return c.startsWith('Taşıyıcı teklif verdi');
+  }
+
+  private async sendNewMessagePush(message: Message): Promise<void> {
+    if (this.isOfferSystemMessage(message)) return;
+
+    const listingId = message.listingId;
+    const listing = await this.listingRepository.findOne({ where: { id: listingId } });
+    const listingTitle = (listing?.title ?? 'Gönderi').toString();
+
+    const senderUserId = message.fromCarrier ? message.carrierId : message.senderId;
+    const recipientUserId = message.fromCarrier ? message.senderId : message.carrierId;
+    if (!senderUserId || !recipientUserId) return;
+    if (senderUserId === recipientUserId) return;
+
+    const [senderUser, recipientUser] = await Promise.all([
+      this.userRepository.findOne({ where: { id: senderUserId } }),
+      this.userRepository.findOne({ where: { id: recipientUserId } }),
+    ]);
+
+    const token = recipientUser?.fcmToken?.toString().trim();
+    if (!token) return;
+
+    const senderName = (senderUser?.fullName ?? senderUser?.email ?? 'Bir kullanıcı').toString();
+    const snippetRaw = (message.content ?? '').toString().replace(/\s+/g, ' ').trim();
+    const snippet = snippetRaw.length > 120 ? `${snippetRaw.slice(0, 117)}...` : snippetRaw;
+
+    await this.pushService.sendToToken({
+      token,
+      title: 'Yeni mesaj',
+      body: `${senderName}: ${snippet} (${listingTitle})`,
+      data: {
+        type: 'message',
+        listingId: listingId,
+        messageId: message.id,
+      },
+    });
+  }
 
   async create(payload: Omit<Message, 'id' | 'createdAt'>): Promise<Message> {
     const message = this.messageRepository.create(payload);
-    return this.messageRepository.save(message);
+    const saved = await this.messageRepository.save(message);
+    try {
+      await this.sendNewMessagePush(saved);
+    } catch (_) {
+      // Ignore push failures.
+    }
+    return saved;
   }
 
   async findByListingId(listingId: string, userId: string): Promise<Message[]> {

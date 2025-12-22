@@ -77,11 +77,12 @@ export class OffersService {
         const proposerName = proposer?.fullName ?? proposer?.email ?? 'Taşıyıcı';
         await this.pushService.sendToToken({
           token,
-          title: 'Yeni Teklif',
+          title: 'Yeni teklif geldi',
           body: `${proposerName} "${listing.title ?? 'Gönderi'}" için ${dto.amount} TL teklif verdi.`,
           data: {
             type: 'offer',
             listingId: dto.listingId,
+            offerId: saved.id,
           },
         });
       }
