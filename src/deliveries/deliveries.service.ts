@@ -5,6 +5,7 @@ import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
 import { Delivery } from './delivery.entity';
 import { Listing } from '../listings/listing.entity';
+import { Offer } from '../offers/offer.entity';
 import { User } from '../auth/user.entity';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../push/push.service';
@@ -23,6 +24,8 @@ export class DeliveriesService {
     private readonly deliveriesRepository: Repository<Delivery>,
     @InjectRepository(Listing)
     private readonly listingsRepository: Repository<Listing>,
+    @InjectRepository(Offer)
+    private readonly offersRepository: Repository<Offer>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) {}
@@ -250,23 +253,9 @@ export class DeliveriesService {
       throw new BadRequestException('Teslimatın taşıyıcısı yok');
     }
 
+    // Geçici istek (22.12.2025): Taşıyıcı “Kod Gönder”e basınca direkt teslim edildi yap.
+    // Daha sonra gerçek OTP/SMS/receiver doğrulama akışına geri döneceğiz.
     const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
-    const phone = listing?.receiver_phone?.toString().trim() ?? '';
-    if (!phone) {
-      throw new BadRequestException('Alıcı telefon numarası girilmemiş');
-    }
-
-    const otp = this.generateOtp6();
-    delivery.deliveryOtp = otp;
-    delivery.deliveryOtpSentAt = new Date();
-
-    // Persist OTP before sending SMS (so retries can reuse latest state).
-    await this.deliveriesRepository.save(delivery);
-
-    const message = `BiTaşı teslimat kodu: ${otp}`;
-    await this.smsService.sendSms(phone, message);
-
-    // As requested: no receiver auth yet -> auto-approve after SMS send.
     this.assertTransition(delivery.status, 'delivered');
     delivery.status = 'delivered';
     delivery.deliveredAt = new Date();
@@ -519,7 +508,7 @@ export class DeliveriesService {
     });
   }
 
-  async findByOwner(ownerId: string): Promise<Delivery[]> {
+  async findByOwner(ownerId: string): Promise<any[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
     if (!listings.length) return [];
     const listingIds = listings.map(l => l.id);
@@ -537,6 +526,59 @@ export class DeliveriesService {
       await this.deliveriesRepository.save(toFix);
     }
 
-    return deliveries;
+    const listingMap = new Map(listings.map(l => [l.id, l]));
+
+    const carrierIds = [...new Set(deliveries.map(d => d.carrierId).filter(Boolean))] as string[];
+    const carriers = carrierIds.length ? await this.usersRepository.findByIds(carrierIds) : [];
+    const carrierMap = new Map(carriers.map(c => [c.id, c]));
+
+    const acceptedOffers = listingIds.length
+      ? await this.offersRepository.find({ where: { listingId: In(listingIds), status: 'accepted' } })
+      : [];
+    const acceptedOfferMap = new Map(acceptedOffers.map(o => [o.listingId, o]));
+
+    return deliveries.map(d => {
+      const listing = listingMap.get(d.listingId);
+      const carrier = d.carrierId ? carrierMap.get(d.carrierId) : null;
+      const acceptedOffer = acceptedOfferMap.get(d.listingId);
+      return {
+        ...d,
+        listing: listing
+          ? {
+              id: listing.id,
+              title: listing.title,
+              description: listing.description,
+              photos: listing.photos,
+              weight: listing.weight,
+              dimensions: listing.dimensions,
+              fragile: listing.fragile,
+              pickup_location: listing.pickup_location,
+              dropoff_location: listing.dropoff_location,
+              receiver_phone: listing.receiver_phone ?? null,
+              ownerId: listing.ownerId,
+              createdAt: listing.createdAt,
+              updatedAt: listing.updatedAt,
+            }
+          : null,
+        receiver_phone: listing?.receiver_phone ?? null,
+        carrier: carrier
+          ? {
+              id: carrier.id,
+              fullName: carrier.fullName ?? null,
+              email: carrier.email ?? null,
+              avatarUrl: carrier.avatarUrl ?? null,
+              rating: carrier.rating ?? null,
+              deliveredCount: carrier.deliveredCount ?? null,
+            }
+          : null,
+        acceptedOffer: acceptedOffer
+          ? {
+              id: acceptedOffer.id,
+              amount: acceptedOffer.amount,
+              proposerId: acceptedOffer.proposerId,
+            }
+          : null,
+      };
+    });
   }
 }

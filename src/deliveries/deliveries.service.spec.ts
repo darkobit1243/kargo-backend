@@ -4,6 +4,7 @@ import { DeliveriesService } from './deliveries.service';
 import { WsGateway } from '../ws/ws.gateway';
 import { Delivery } from './delivery.entity';
 import { Listing } from '../listings/listing.entity';
+import { Offer } from '../offers/offer.entity';
 import { User } from '../auth/user.entity';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../push/push.service';
@@ -28,6 +29,10 @@ describe('DeliveriesService', () => {
   const listingsRepository = {
     find: jest.fn(),
     findOne: jest.fn(),
+  };
+
+  const offersRepository = {
+    find: jest.fn(),
   };
 
   const usersRepository = {
@@ -56,6 +61,7 @@ describe('DeliveriesService', () => {
         { provide: ConfigService, useValue: configService },
         { provide: getRepositoryToken(Delivery), useValue: deliveriesRepository },
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
+        { provide: getRepositoryToken(Offer), useValue: offersRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },
       ],
     }).compile();
