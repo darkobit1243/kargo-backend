@@ -1,12 +1,16 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+import { readFileSync } from 'node:fs';
 
 import * as admin from 'firebase-admin';
 
 @Injectable()
 export class PushService {
+  private readonly logger = new Logger(PushService.name);
   private initialized = false;
   private enabled = false;
+  private warnedDisabled = false;
 
   private static readonly kDefaultAndroidChannelId = 'bitasi_default';
 
@@ -19,6 +23,7 @@ export class PushService {
     this.initialized = true;
 
     const json = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON');
+    const jsonPath = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_PATH');
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
 
     try {
@@ -37,10 +42,28 @@ export class PushService {
         return;
       }
 
+      if (jsonPath && jsonPath.trim().length > 0) {
+        const file = readFileSync(jsonPath.trim(), 'utf8');
+        const creds = JSON.parse(file);
+        admin.initializeApp({
+          credential: admin.credential.cert(creds),
+          projectId: creds.project_id ?? projectId,
+        });
+        this.enabled = true;
+        return;
+      }
+
       // No credentials configured.
       this.enabled = false;
     } catch (_) {
       this.enabled = false;
+    }
+
+    if (!this.enabled && !this.warnedDisabled) {
+      this.warnedDisabled = true;
+      this.logger.warn(
+        'Push disabled: FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH missing/invalid (FCM notifications will not be sent).',
+      );
     }
   }
 
@@ -50,7 +73,15 @@ export class PushService {
     body: string;
     data?: Record<string, string>;
   }): Promise<boolean> {
-    if (!this.enabled) return false;
+    if (!this.enabled) {
+      if (!this.warnedDisabled) {
+        this.warnedDisabled = true;
+        this.logger.warn(
+          'Push disabled: FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH missing/invalid (FCM notifications will not be sent).',
+        );
+      }
+      return false;
+    }
     try {
       await admin.messaging().send({
         token: params.token,
@@ -70,6 +101,8 @@ export class PushService {
       });
       return true;
     } catch (_) {
+      // Avoid logging token/body for privacy.
+      this.logger.debug('FCM send failed (see Firebase credentials / device token validity).');
       return false;
     }
   }
