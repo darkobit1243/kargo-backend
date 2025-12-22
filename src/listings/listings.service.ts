@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { Listing } from './listing.entity';
 import { User } from '../auth/user.entity';
+import { Offer } from '../offers/offer.entity';
 
 @Injectable()
 export class ListingsService {
@@ -12,6 +13,8 @@ export class ListingsService {
     private readonly listingsRepository: Repository<Listing>,
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
+    @InjectRepository(Offer)
+    private readonly offersRepository: Repository<Offer>,
   ) {}
 
   async create(ownerId: string, dto: CreateListingDto): Promise<Listing> {
@@ -23,9 +26,12 @@ export class ListingsService {
   }
 
   async findAll(): Promise<any[]> {
-    const listings = await this.listingsRepository.find();
+    const accepted = await this.offersRepository.find({ where: { status: 'accepted' } });
+    const acceptedListingIds = new Set(accepted.map(o => o.listingId).filter(Boolean));
+
+    const listings = (await this.listingsRepository.find()).filter(l => !acceptedListingIds.has(l.id));
     const ownerIds = [...new Set(listings.map(l => l.ownerId))];
-    const owners = await this.usersRepository.findByIds(ownerIds);
+    const owners = ownerIds.length ? await this.usersRepository.findByIds(ownerIds) : [];
     const ownerMap = new Map(owners.map(o => [o.id, o]));
 
     return listings.map(l => {

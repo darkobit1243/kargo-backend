@@ -38,6 +38,10 @@ export class Listing {
   @Column({ type: 'jsonb' })
   dropoff_location: { lat: number; lng: number };
 
+  // Receiver (alıcı) phone number at dropoff.
+  @Column({ type: 'varchar', nullable: true })
+  receiver_phone?: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsNumber,
+  IsOptional,
   IsString,
   IsNotEmpty,
   ValidateNested,
@@ -57,4 +58,8 @@ export class CreateListingDto {
   @ValidateNested()
   @Type(() => LocationDto)
   dropoff_location: LocationDto;
+
+  @IsOptional()
+  @IsString()
+  receiver_phone?: string;
 }

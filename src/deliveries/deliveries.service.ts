@@ -1,15 +1,24 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
 import { Delivery } from './delivery.entity';
 import { Listing } from '../listings/listing.entity';
 import { User } from '../auth/user.entity';
+import { SmsService } from '../sms/sms.service';
+import { PushService } from '../push/push.service';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class DeliveriesService {
+  private readonly logger = new Logger(DeliveriesService.name);
+
   constructor(
     private wsGateway: WsGateway,
+    private readonly smsService: SmsService,
+    private readonly pushService: PushService,
+    private readonly config: ConfigService,
     @InjectRepository(Delivery)
     private readonly deliveriesRepository: Repository<Delivery>,
     @InjectRepository(Listing)
@@ -17,6 +26,86 @@ export class DeliveriesService {
     @InjectRepository(User)
     private readonly usersRepository: Repository<User>,
   ) {}
+
+  private isFinalStatus(status: Delivery['status']): boolean {
+    return status === 'delivered' || status === 'cancelled' || status === 'disputed';
+  }
+
+  private assertTransition(from: Delivery['status'], to: Delivery['status']): void {
+    const allowed: Record<Delivery['status'], Array<Delivery['status']>> = {
+      pickup_pending: ['in_transit', 'cancelled'],
+      in_transit: ['at_door', 'delivered', 'cancelled'],
+      at_door: ['delivered', 'cancelled'],
+      delivered: ['disputed'],
+      cancelled: [],
+      disputed: [],
+    };
+
+    if (!allowed[from]?.includes(to)) {
+      throw new BadRequestException(`Geçersiz durum geçişi: ${from} -> ${to}`);
+    }
+  }
+
+  private async notifyCriticalDeliveryEvent(params: {
+    type: 'delivery_cancelled' | 'delivery_at_door' | 'delivery_delivered' | 'delivery_disputed';
+    deliveryId: string;
+    listingId: string;
+    ownerId?: string | null;
+    carrierId?: string | null;
+    title: string;
+    body: string;
+  }): Promise<void> {
+    const recipientIds = [params.ownerId, params.carrierId].filter(Boolean) as string[];
+    if (recipientIds.length === 0) return;
+    try {
+      const users = await this.usersRepository.findByIds(recipientIds);
+      await Promise.all(
+        users
+          .map(u => u?.fcmToken?.toString().trim())
+          .filter((t): t is string => Boolean(t))
+          .map(token =>
+            this.pushService.sendToToken({
+              token,
+              title: params.title,
+              body: params.body,
+              data: {
+                type: params.type,
+                deliveryId: params.deliveryId,
+                listingId: params.listingId,
+              },
+            }),
+          ),
+      );
+    } catch (_) {
+      // Ignore push failures.
+    }
+  }
+
+  private ensureFirebaseAdminInitialized(): void {
+    if (admin.apps.length > 0) return;
+
+    const json = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON');
+    const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
+    if (!json || !json.trim().startsWith('{')) {
+      throw new BadRequestException('Firebase admin yapılandırması yok');
+    }
+    try {
+      const creds = JSON.parse(json);
+      admin.initializeApp({
+        credential: admin.credential.cert(creds),
+        projectId: creds.project_id ?? projectId,
+      });
+    } catch (_) {
+      throw new BadRequestException('Firebase admin başlatılamadı');
+    }
+  }
+
+  private normalizePhoneForCompare(phone: string): string {
+    const digits = (phone ?? '').replace(/\D/g, '');
+    if (!digits) return '';
+    // Compare using last 10 digits (TR local), tolerates +90 / 0 prefixes.
+    return digits.length > 10 ? digits.slice(-10) : digits;
+  }
 
   private async bumpDeliveredCount(userId: string): Promise<void> {
     await this.usersRepository
@@ -35,6 +124,11 @@ export class DeliveriesService {
     return `${rnd()}${rnd()}`.slice(0, 24);
   }
 
+  private generateOtp6(): string {
+    const n = Math.floor(100000 + Math.random() * 900000);
+    return String(n);
+  }
+
   async create(dto: { listingId: string }): Promise<Delivery> {
     const delivery = this.deliveriesRepository.create({
       listingId: dto.listingId,
@@ -51,6 +145,7 @@ export class DeliveriesService {
       if (!qrToken || !delivery.pickupQrToken || qrToken !== delivery.pickupQrToken) {
         throw new BadRequestException('QR doğrulaması gerekli');
       }
+      this.assertTransition(delivery.status, 'in_transit');
       delivery.carrierId = carrierId;
       delivery.status = 'in_transit';
       delivery.pickupAt = new Date();
@@ -62,9 +157,43 @@ export class DeliveriesService {
     return delivery ?? null;
   }
 
+  async markAtDoor(id: string, carrierId: string): Promise<Delivery | null> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.status !== 'in_transit') {
+      throw new BadRequestException('Kapıda durumu yalnızca yoldayken işaretlenebilir');
+    }
+    if (delivery.carrierId && delivery.carrierId !== carrierId) {
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+    }
+    if (!delivery.carrierId) {
+      throw new BadRequestException('Teslimatın taşıyıcısı yok');
+    }
+
+    this.assertTransition(delivery.status, 'at_door');
+    delivery.status = 'at_door';
+    const saved = await this.deliveriesRepository.save(delivery);
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+
+    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    await this.notifyCriticalDeliveryEvent({
+      type: 'delivery_at_door',
+      deliveryId: saved.id,
+      listingId: saved.listingId,
+      ownerId: listing?.ownerId ?? null,
+      carrierId: saved.carrierId ?? null,
+      title: 'Kapıda',
+      body: 'Taşıyıcı adrese geldi.',
+    });
+
+    return saved;
+  }
+
   async deliver(id: string, carrierId: string): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
-    if (delivery && delivery.status === 'in_transit') {
+    if (delivery && (delivery.status === 'in_transit' || delivery.status === 'at_door')) {
       if (delivery.carrierId && delivery.carrierId !== carrierId) {
         throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
       }
@@ -72,6 +201,7 @@ export class DeliveriesService {
         throw new BadRequestException('Teslimatın taşıyıcısı yok');
       }
 
+      this.assertTransition(delivery.status, 'delivered');
       delivery.status = 'delivered';
       delivery.deliveredAt = new Date();
       const saved = await this.deliveriesRepository.save(delivery);
@@ -84,9 +214,234 @@ export class DeliveriesService {
       }
 
       this.wsGateway.sendDeliveryUpdate(id, saved);
+
+      await this.notifyCriticalDeliveryEvent({
+        type: 'delivery_delivered',
+        deliveryId: saved.id,
+        listingId: saved.listingId,
+        ownerId: listing?.ownerId ?? null,
+        carrierId: saved.carrierId ?? null,
+        title: 'Teslim',
+        body: 'Teslimat tamamlandı.',
+      });
+
       return saved;
     }
     return delivery ?? null;
+  }
+
+  /**
+   * Sends a delivery confirmation code (OTP) to the receiver phone.
+   * NOTE: SMS integration is not wired yet; we log the code for now.
+   * As requested, we currently auto-approve the delivery without receiver auth.
+   */
+  async sendDeliveryCode(id: string, carrierId: string): Promise<Delivery | null> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.status !== 'in_transit' && delivery.status !== 'at_door') {
+      throw new BadRequestException('Kod yalnızca yoldaki/kapıdaki teslimatlarda gönderilebilir');
+    }
+    if (delivery.carrierId && delivery.carrierId !== carrierId) {
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+    }
+    if (!delivery.carrierId) {
+      throw new BadRequestException('Teslimatın taşıyıcısı yok');
+    }
+
+    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const phone = listing?.receiver_phone?.toString().trim() ?? '';
+    if (!phone) {
+      throw new BadRequestException('Alıcı telefon numarası girilmemiş');
+    }
+
+    const otp = this.generateOtp6();
+    delivery.deliveryOtp = otp;
+    delivery.deliveryOtpSentAt = new Date();
+
+    // Persist OTP before sending SMS (so retries can reuse latest state).
+    await this.deliveriesRepository.save(delivery);
+
+    const message = `BiTaşı teslimat kodu: ${otp}`;
+    await this.smsService.sendSms(phone, message);
+
+    // As requested: no receiver auth yet -> auto-approve after SMS send.
+    this.assertTransition(delivery.status, 'delivered');
+    delivery.status = 'delivered';
+    delivery.deliveredAt = new Date();
+    const saved = await this.deliveriesRepository.save(delivery);
+
+    await this.bumpDeliveredCount(delivery.carrierId);
+    if (listing?.ownerId) {
+      await this.bumpDeliveredCount(listing.ownerId);
+    }
+
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+
+    await this.notifyCriticalDeliveryEvent({
+      type: 'delivery_delivered',
+      deliveryId: saved.id,
+      listingId: saved.listingId,
+      ownerId: listing?.ownerId ?? null,
+      carrierId: saved.carrierId ?? null,
+      title: 'Teslim',
+      body: 'Teslimat tamamlandı.',
+    });
+
+    return saved;
+  }
+
+  async confirmDeliveryWithFirebaseToken(
+    id: string,
+    carrierId: string,
+    idToken: string,
+  ): Promise<Delivery | null> {
+    const token = (idToken ?? '').trim();
+    if (!token) {
+      throw new BadRequestException('idToken gerekli');
+    }
+
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.status !== 'in_transit' && delivery.status !== 'at_door') {
+      throw new BadRequestException('Teslimat yolda/kapıda değil');
+    }
+    if (delivery.carrierId && delivery.carrierId !== carrierId) {
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+    }
+    if (!delivery.carrierId) {
+      throw new BadRequestException('Teslimatın taşıyıcısı yok');
+    }
+
+    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const expectedPhone = this.normalizePhoneForCompare(listing?.receiver_phone?.toString() ?? '');
+    if (!expectedPhone) {
+      throw new BadRequestException('Alıcı telefon numarası girilmemiş');
+    }
+
+    this.ensureFirebaseAdminInitialized();
+    const decoded = await admin.auth().verifyIdToken(token);
+    const tokenPhone = this.normalizePhoneForCompare((decoded as any)?.phone_number ?? '');
+    if (!tokenPhone) {
+      throw new BadRequestException('Firebase token içinde phone_number yok');
+    }
+    if (tokenPhone !== expectedPhone) {
+      throw new ForbiddenException('Alıcı telefonu doğrulanamadı');
+    }
+
+    this.assertTransition(delivery.status, 'delivered');
+    delivery.status = 'delivered';
+    delivery.deliveredAt = new Date();
+    const saved = await this.deliveriesRepository.save(delivery);
+
+    await this.bumpDeliveredCount(delivery.carrierId);
+    if (listing?.ownerId) {
+      await this.bumpDeliveredCount(listing.ownerId);
+    }
+
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+
+    await this.notifyCriticalDeliveryEvent({
+      type: 'delivery_delivered',
+      deliveryId: saved.id,
+      listingId: saved.listingId,
+      ownerId: listing?.ownerId ?? null,
+      carrierId: saved.carrierId ?? null,
+      title: 'Teslim',
+      body: 'Teslimat tamamlandı.',
+    });
+
+    return saved;
+  }
+
+  async cancel(id: string, actor: { id: string; role: 'sender' | 'carrier' }): Promise<Delivery> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (this.isFinalStatus(delivery.status)) {
+      throw new BadRequestException('Final durumdaki teslimat iptal edilemez');
+    }
+
+    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    if (!listing) {
+      throw new BadRequestException('Listing bulunamadı');
+    }
+
+    if (actor.role === 'carrier') {
+      if (delivery.carrierId && delivery.carrierId !== actor.id) {
+        throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+      }
+      if (!delivery.carrierId) {
+        throw new BadRequestException('Teslimatın taşıyıcısı yok');
+      }
+    } else {
+      if (listing.ownerId !== actor.id) {
+        throw new ForbiddenException('Bu teslimatın göndericisi değilsiniz');
+      }
+    }
+
+    this.assertTransition(delivery.status, 'cancelled');
+    delivery.status = 'cancelled';
+    const saved = await this.deliveriesRepository.save(delivery);
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+
+    await this.notifyCriticalDeliveryEvent({
+      type: 'delivery_cancelled',
+      deliveryId: saved.id,
+      listingId: saved.listingId,
+      ownerId: listing.ownerId,
+      carrierId: saved.carrierId ?? null,
+      title: 'İptal',
+      body: 'Teslimat iptal edildi.',
+    });
+
+    return saved;
+  }
+
+  async dispute(id: string, actor: { id: string; role: 'sender' | 'carrier' }): Promise<Delivery> {
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.status !== 'delivered') {
+      throw new BadRequestException('Uyuşmazlık yalnızca teslim edilmiş teslimatlarda açılabilir');
+    }
+
+    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    if (!listing) {
+      throw new BadRequestException('Listing bulunamadı');
+    }
+
+    if (actor.role === 'carrier') {
+      if (!delivery.carrierId || delivery.carrierId !== actor.id) {
+        throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+      }
+    } else {
+      if (listing.ownerId !== actor.id) {
+        throw new ForbiddenException('Bu teslimatın göndericisi değilsiniz');
+      }
+    }
+
+    this.assertTransition(delivery.status, 'disputed');
+    delivery.status = 'disputed';
+    const saved = await this.deliveriesRepository.save(delivery);
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+
+    await this.notifyCriticalDeliveryEvent({
+      type: 'delivery_disputed',
+      deliveryId: saved.id,
+      listingId: saved.listingId,
+      ownerId: listing.ownerId,
+      carrierId: saved.carrierId ?? null,
+      title: 'Uyuşmazlık',
+      body: 'Teslimat için uyuşmazlık başlatıldı.',
+    });
+
+    return saved;
   }
 
   async updateLocation(id: string, carrierId: string, lat: number, lng: number): Promise<Delivery> {
@@ -97,8 +452,8 @@ export class DeliveriesService {
     if (delivery.carrierId && delivery.carrierId !== carrierId) {
       throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
     }
-    if (delivery.status !== 'in_transit') {
-      throw new BadRequestException('Konum güncelleme yalnızca yoldayken yapılabilir');
+    if (delivery.status !== 'in_transit' && delivery.status !== 'at_door') {
+      throw new BadRequestException('Konum güncelleme yalnızca yolda/kapıdayken yapılabilir');
     }
     if (!delivery.trackingEnabled) {
       throw new BadRequestException('Canlı takip aktif değil');
@@ -119,7 +474,7 @@ export class DeliveriesService {
     return this.deliveriesRepository.findOne({ where: { listingId } });
   }
 
-  async findByCarrier(carrierId: string): Promise<Delivery[]> {
+  async findByCarrier(carrierId: string): Promise<any[]> {
     const deliveries = await this.deliveriesRepository.find({ where: { carrierId } });
     const toFix = deliveries
       .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().length === 0))
@@ -131,7 +486,37 @@ export class DeliveriesService {
     if (toFix.length > 0) {
       await this.deliveriesRepository.save(toFix);
     }
-    return deliveries;
+
+    const listingIds = [...new Set(deliveries.map(d => d.listingId).filter(Boolean))];
+    const listings = listingIds.length
+      ? await this.listingsRepository.find({ where: { id: In(listingIds) } })
+      : [];
+    const listingMap = new Map(listings.map(l => [l.id, l]));
+
+    return deliveries.map(d => {
+      const listing = listingMap.get(d.listingId);
+      return {
+        ...d,
+        listing: listing
+          ? {
+              id: listing.id,
+              title: listing.title,
+              description: listing.description,
+              photos: listing.photos,
+              weight: listing.weight,
+              dimensions: listing.dimensions,
+              fragile: listing.fragile,
+              pickup_location: listing.pickup_location,
+              dropoff_location: listing.dropoff_location,
+              receiver_phone: listing.receiver_phone ?? null,
+              ownerId: listing.ownerId,
+              createdAt: listing.createdAt,
+              updatedAt: listing.updatedAt,
+            }
+          : null,
+        receiver_phone: listing?.receiver_phone ?? null,
+      };
+    });
   }
 
   async findByOwner(ownerId: string): Promise<Delivery[]> {

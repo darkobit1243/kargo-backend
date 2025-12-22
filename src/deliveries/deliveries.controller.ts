@@ -1,5 +1,6 @@
 import { Controller, Post, Param, Body, Get, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { DeliveriesService } from './deliveries.service';
+import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -42,6 +43,46 @@ export class DeliveriesController {
   deliver(@Param('id') id: string, @Req() req: Request) {
     const payload = req.user as { sub: string };
     return this.deliveriesService.deliver(id, payload.sub);
+  }
+
+  @Post(':id/at-door')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  atDoor(@Param('id') id: string, @Req() req: Request) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.markAtDoor(id, payload.sub);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender', 'carrier')
+  cancel(@Param('id') id: string, @Req() req: Request) {
+    const payload = req.user as { sub: string; role: 'sender' | 'carrier' };
+    return this.deliveriesService.cancel(id, { id: payload.sub, role: payload.role });
+  }
+
+  @Post(':id/dispute')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('sender', 'carrier')
+  dispute(@Param('id') id: string, @Req() req: Request) {
+    const payload = req.user as { sub: string; role: 'sender' | 'carrier' };
+    return this.deliveriesService.dispute(id, { id: payload.sub, role: payload.role });
+  }
+
+  @Post(':id/send-delivery-code')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  sendDeliveryCode(@Param('id') id: string, @Req() req: Request) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.sendDeliveryCode(id, payload.sub);
+  }
+
+  @Post(':id/confirm-delivery')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  confirmDelivery(@Param('id') id: string, @Req() req: Request, @Body() body: ConfirmDeliveryDto) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.confirmDeliveryWithFirebaseToken(id, payload.sub, body.idToken);
   }
 
   @Get('by-listing/:listingId')

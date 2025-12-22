@@ -42,6 +42,14 @@ export class OffersService {
       throw new BadRequestException('Kendi ilanınıza teklif veremezsiniz');
     }
 
+    // If listing already has an accepted offer, it is no longer offerable.
+    const alreadyAccepted = await this.offersRepository.findOne({
+      where: { listingId: dto.listingId, status: 'accepted' },
+    });
+    if (alreadyAccepted) {
+      throw new BadRequestException('Bu ilan için zaten kabul edilmiş teklif var');
+    }
+
     const offer = this.offersRepository.create({
       ...dto,
       status: 'pending' as OfferStatus,
@@ -60,19 +68,20 @@ export class OffersService {
     this.wsGateway.sendMessage(dto.listingId, savedMessage);
     this.wsGateway.sendOfferNotification(dto.listingId, saved);
 
-    // Push notification to sender (listing owner)
+    // Critical push: new offer -> notify listing owner (sender)
     try {
       const owner = await this.usersRepository.findOne({ where: { id: listing.ownerId } });
-      const token = owner?.fcmToken;
+      const token = owner?.fcmToken?.toString().trim();
       if (token) {
+        const proposer = await this.usersRepository.findOne({ where: { id: dto.proposerId } });
+        const proposerName = proposer?.fullName ?? proposer?.email ?? 'Taşıyıcı';
         await this.pushService.sendToToken({
           token,
           title: 'Yeni Teklif',
-          body: `"${listing.title ?? 'Kargo'}" için ${dto.amount} TL teklif geldi.`,
+          body: `${proposerName} "${listing.title ?? 'Gönderi'}" için ${dto.amount} TL teklif verdi.`,
           data: {
             type: 'offer',
             listingId: dto.listingId,
-            offerId: saved.id,
           },
         });
       }
@@ -163,6 +172,14 @@ export class OffersService {
 
     await this.assertListingOwnedBy(offer.listingId, ownerId);
 
+    // If there is already an accepted offer for this listing, only allow re-accepting the same one.
+    const existingAccepted = await this.offersRepository.findOne({
+      where: { listingId: offer.listingId, status: 'accepted' },
+    });
+    if (existingAccepted && existingAccepted.id !== id) {
+      throw new BadRequestException('Bu ilan için zaten başka bir teklif kabul edilmiş');
+    }
+
     // Aynı listing için daha önce kabul edilmiş teklif varsa hepsini reddet
     const offersForListing = await this.offersRepository.find({
       where: { listingId: offer.listingId },
@@ -207,6 +224,27 @@ export class OffersService {
         }
         delivery.trackingEnabled = false;
         await this.deliveriesRepository.save(delivery);
+      }
+
+      // Critical push: offer accepted -> notify carrier.
+      try {
+        const listing = await this.listingsRepository.findOne({ where: { id: accepted.listingId } });
+        const carrier = await this.usersRepository.findOne({ where: { id: accepted.proposerId } });
+        const token = carrier?.fcmToken?.toString().trim();
+        if (token) {
+          await this.pushService.sendToToken({
+            token,
+            title: 'Teklif Kabul Edildi',
+            body: `"${listing?.title ?? 'Gönderi'}" için teklifin kabul edildi.`,
+            data: {
+              type: 'offer_accepted',
+              listingId: accepted.listingId,
+              offerId: accepted.id,
+            },
+          });
+        }
+      } catch (_) {
+        // Ignore push failures.
       }
     }
 

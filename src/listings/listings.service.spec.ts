@@ -3,6 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ListingsService } from './listings.service';
 import { Listing } from './listing.entity';
 import { User } from '../auth/user.entity';
+import { Offer } from '../offers/offer.entity';
 
 describe('ListingsService', () => {
   let service: ListingsService;
@@ -19,12 +20,17 @@ describe('ListingsService', () => {
     find: jest.fn(),
   };
 
+  const offersRepository = {
+    find: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ListingsService,
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },
+        { provide: getRepositoryToken(Offer), useValue: offersRepository },
       ],
     }).compile();
 

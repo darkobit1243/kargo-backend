@@ -6,7 +6,13 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export type DeliveryStatus = 'pickup_pending' | 'in_transit' | 'delivered';
+export type DeliveryStatus =
+  | 'pickup_pending'
+  | 'in_transit'
+  | 'at_door'
+  | 'delivered'
+  | 'cancelled'
+  | 'disputed';
 
 @Entity({ name: 'deliveries' })
 export class Delivery {
@@ -33,6 +39,13 @@ export class Delivery {
 
   @Column({ type: 'timestamptz', nullable: true })
   deliveredAt?: Date;
+
+  // Delivery confirmation code (OTP). For now, sending auto-approves delivery.
+  @Column({ nullable: true })
+  deliveryOtp?: string;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  deliveryOtpSentAt?: Date;
 
   // Sender shows this QR token; carrier must scan and provide it to pick up.
   @Column({ nullable: true })

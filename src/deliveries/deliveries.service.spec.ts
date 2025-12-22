@@ -5,6 +5,9 @@ import { WsGateway } from '../ws/ws.gateway';
 import { Delivery } from './delivery.entity';
 import { Listing } from '../listings/listing.entity';
 import { User } from '../auth/user.entity';
+import { SmsService } from '../sms/sms.service';
+import { PushService } from '../push/push.service';
+import { ConfigService } from '@nestjs/config';
 
 describe('DeliveriesService', () => {
   let service: DeliveriesService;
@@ -31,11 +34,26 @@ describe('DeliveriesService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const smsService = {
+    sendSms: jest.fn().mockResolvedValue(true),
+  };
+
+  const pushService = {
+    sendToToken: jest.fn().mockResolvedValue(true),
+  };
+
+  const configService = {
+    get: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         DeliveriesService,
         { provide: WsGateway, useValue: wsGateway },
+        { provide: SmsService, useValue: smsService },
+        { provide: PushService, useValue: pushService },
+        { provide: ConfigService, useValue: configService },
         { provide: getRepositoryToken(Delivery), useValue: deliveriesRepository },
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },

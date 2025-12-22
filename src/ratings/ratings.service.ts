@@ -48,11 +48,12 @@ export class RatingsService {
     const ownerId = listing.ownerId;
     const carrierId = delivery.carrierId;
 
-    if (fromUserId !== ownerId && fromUserId !== carrierId) {
-      throw new ForbiddenException('You are not a participant of this delivery');
+    // Only sender -> carrier rating is allowed.
+    if (fromUserId !== ownerId) {
+      throw new ForbiddenException('Only the sender can rate the carrier');
     }
 
-    const toUserId = fromUserId === ownerId ? carrierId : ownerId;
+    const toUserId = carrierId;
 
     const rating = this.ratingsRepo.create({
       fromUserId,
