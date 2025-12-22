@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { readFileSync } from 'node:fs';
+import { isAbsolute, resolve as resolvePath } from 'node:path';
 
 import * as admin from 'firebase-admin';
 
@@ -43,7 +44,9 @@ export class PushService {
       }
 
       if (jsonPath && jsonPath.trim().length > 0) {
-        const file = readFileSync(jsonPath.trim(), 'utf8');
+        const rawPath = jsonPath.trim();
+        const fullPath = isAbsolute(rawPath) ? rawPath : resolvePath(process.cwd(), rawPath);
+        const file = readFileSync(fullPath, 'utf8');
         const creds = JSON.parse(file);
         admin.initializeApp({
           credential: admin.credential.cert(creds),
@@ -105,5 +108,9 @@ export class PushService {
       this.logger.debug('FCM send failed (see Firebase credentials / device token validity).');
       return false;
     }
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 }
