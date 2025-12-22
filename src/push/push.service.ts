@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath } from 'node:path';
 
 import * as admin from 'firebase-admin';
@@ -24,7 +24,7 @@ export class PushService {
     this.initialized = true;
 
     const json = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON');
-    const jsonPath = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_PATH');
+    let jsonPath = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_PATH');
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
 
     this.logger.log(`PushService init: jsonPath='${jsonPath}', projectId='${projectId}'`);
@@ -43,6 +43,11 @@ export class PushService {
         });
         this.enabled = true;
         return;
+      }
+
+      if (!jsonPath && existsSync('firebase-service-account.json')) {
+        jsonPath = 'firebase-service-account.json';
+        this.logger.log('PushService: Found firebase-service-account.json in root (fallback).');
       }
 
       if (jsonPath && jsonPath.trim().length > 0) {
