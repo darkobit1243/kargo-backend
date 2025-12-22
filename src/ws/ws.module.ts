@@ -6,9 +6,10 @@ import { Message } from '../messages/message.entity';
 import { Offer } from '../offers/offer.entity';
 import { Listing } from '../listings/listing.entity';
 import { User } from '../auth/user.entity';
+import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Message, Offer, Listing, User])],
+  imports: [TypeOrmModule.forFeature([Message, Offer, Listing, User]), PushModule],
   providers: [WsGateway, MessagesService],
   exports: [WsGateway],
 })
