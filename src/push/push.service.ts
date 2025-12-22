@@ -27,6 +27,8 @@ export class PushService {
     const jsonPath = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_PATH');
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
 
+    this.logger.log(`PushService init: jsonPath='${jsonPath}', projectId='${projectId}'`);
+
     try {
       if (admin.apps.length > 0) {
         this.enabled = true;
@@ -46,14 +48,20 @@ export class PushService {
       if (jsonPath && jsonPath.trim().length > 0) {
         const rawPath = jsonPath.trim();
         const fullPath = isAbsolute(rawPath) ? rawPath : resolvePath(process.cwd(), rawPath);
-        const file = readFileSync(fullPath, 'utf8');
-        const creds = JSON.parse(file);
-        admin.initializeApp({
-          credential: admin.credential.cert(creds),
-          projectId: creds.project_id ?? projectId,
-        });
-        this.enabled = true;
-        return;
+        this.logger.log(`PushService: Trying to read service account from '${fullPath}'`);
+        try {
+          const file = readFileSync(fullPath, 'utf8');
+          const creds = JSON.parse(file);
+          admin.initializeApp({
+            credential: admin.credential.cert(creds),
+            projectId: creds.project_id ?? projectId,
+          });
+          this.enabled = true;
+          this.logger.log('PushService: Service account loaded and Firebase initialized.');
+          return;
+        } catch (err) {
+          this.logger.error(`PushService: Error reading or parsing service account file: ${err}`);
+        }
       }
 
       // No credentials configured.
