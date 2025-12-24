@@ -234,21 +234,22 @@ export class AuthService {
       role: found.role,
       user: this.sanitize(found),
     };
-    async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
-      // Refresh token ile kullanıcıyı bul
-      const user = await this.usersRepository.findOne({ where: { refreshToken } });
-      if (!user) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-      // Yeni access token ve refresh token üret
-      const newRefreshToken = randomBytes(64).toString('hex');
-      user.refreshToken = newRefreshToken;
-      await this.usersRepository.save(user);
-      return {
-        token: this.signToken(user),
-        refreshToken: newRefreshToken,
-      };
+  }
+
+  async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
+    // Refresh token ile kullanıcıyı bul
+    const user = await this.usersRepository.findOne({ where: { refreshToken } });
+    if (!user) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
+    // Yeni access token ve refresh token üret
+    const newRefreshToken = randomBytes(64).toString('hex');
+    user.refreshToken = newRefreshToken;
+    await this.usersRepository.save(user);
+    return {
+      token: this.signToken(user),
+      refreshToken: newRefreshToken,
+    };
   }
 
   async findById(id: string): Promise<AuthResponseUser> {

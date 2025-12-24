@@ -1,6 +1,3 @@
-  // JWT refresh token (opsiyonel)
-  @Column({ type: 'text', nullable: true })
-  refreshToken?: string | null;
 import {
   Column,
   Entity,
@@ -31,6 +28,10 @@ export class User {
   // FCM device token for push notifications (optional)
   @Column({ type: 'text', nullable: true })
   fcmToken?: string | null;
+
+  // JWT refresh token (opsiyonel)
+  @Column({ type: 'text', nullable: true })
+  refreshToken?: string | null;
 
   @Column({ unique: true })
   email: string;
