@@ -1,20 +1,12 @@
 const { Client } = require('pg');
 require('dotenv').config();
 
-async function fixDatabase() {
-    // .env'den veya terminalden gelen URL'i kullan
-    let url = process.env.DATABASE_URL || process.argv[2];
-
+async function runQuery() {
+    const url = process.env.DATABASE_URL || process.argv[2];
     if (!url) {
-        console.error('❌ Hata: DATABASE_URL bulunamadı!');
-        console.log('Kullanım: node fix-db.js "POSTGRES_DIŞ_BAĞLANTI_URLİNİZ"');
-        console.log('\nRailway Dashboard\'da PostgreSQL servisine tıkla.');
-        console.log('Connect sekmesine gel ve "External Connection String" yazan yeri kopyala.');
-        console.log('Sonra şu şekilde çalıştır: node fix-db.js "kopyaladığın_url"');
+        console.error('❌ Hata: DATABASE_URL eksik!');
         return;
     }
-
-    console.log('🔄 Veritabanına bağlanılıyor...');
 
     const client = new Client({
         connectionString: url,
@@ -23,18 +15,26 @@ async function fixDatabase() {
 
     try {
         await client.connect();
-        console.log('✅ Bağlantı başarılı.');
 
-        console.log('🚀 PostGIS eklentisi aktif ediliyor...');
-        await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
+        // BURAYA İSTEDİĞİN SQL'İ YAZ KANZI
+        const sql = "SELECT id, email, role FROM users LIMIT 10;";
+        // Kendini admin yapmak için alt satırı yorumdan çıkarıp yukarıdakini silebilirsin:
+        // const sql = "UPDATE users SET role = 'admin' WHERE email = 'SENIN_MAILIN@GMAIL.COM';";
 
-        console.log('✨ Tebrikler! PostGIS başarıyla kuruldu.');
-        console.log('Şimdi backend projesini Railway üzerinde "Restart" yapabilirsin.');
+        console.log('🚀 Sorgu çalıştırılıyor:', sql);
+        const res = await client.query(sql);
+
+        if (res.command === 'SELECT') {
+            console.table(res.rows); // Tabloyu terminalde göreceksin!
+        } else {
+            console.log('✅ İşlem başarılı:', res.rowCount, 'satır etkilendi.');
+        }
+
     } catch (err) {
-        console.error('❌ Bir hata oluştu:', err.message);
+        console.error('❌ Hata:', err.message);
     } finally {
-        try { await client.end(); } catch (e) { }
+        await client.end();
     }
 }
 
-fixDatabase();
+runQuery();

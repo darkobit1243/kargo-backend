@@ -60,7 +60,7 @@ export class ListingsController {
   findByOwner(@Param('ownerId') ownerId: string, @Req() req: Request) {
     const payload = req.user as { sub: string };
     if (payload.sub !== ownerId) {
-      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok');
+      throw new ForbiddenException('Sadece kendi ilanlarınıza erişebilirsiniz.');
     }
     return this.listingsService.findByOwner(ownerId);
   }

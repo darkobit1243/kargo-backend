@@ -4,6 +4,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
+import { RefreshController } from './refresh.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from './user.entity';
 import { RolesGuard } from './roles.guard';
@@ -25,7 +26,7 @@ import { RolesGuard } from './roles.guard';
     }),
   ],
   providers: [AuthService, JwtAuthGuard, RolesGuard],
-  controllers: [AuthController],
+  controllers: [AuthController, RefreshController],
   exports: [AuthService, JwtAuthGuard, RolesGuard, JwtModule],
 })
 export class AuthModule {}

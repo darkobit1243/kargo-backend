@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AppInfoController } from './app-info.controller';
 import { AuthModule } from './auth/auth.module';
 import { ListingsModule } from './listings/listings.module';
 import { OffersModule } from './offers/offers.module';
@@ -54,7 +55,7 @@ import { AdminModule } from './admin/admin.module';
     RatingsModule,
     PushModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, AppInfoController],
   providers: [AppService],
 })
 export class AppModule { }

@@ -1,3 +1,6 @@
+  // JWT refresh token (opsiyonel)
+  @Column({ type: 'text', nullable: true })
+  refreshToken?: string | null;
 import {
   Column,
   Entity,

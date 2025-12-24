@@ -50,7 +50,7 @@ export class OffersController {
   findByOwner(@Param('ownerId') ownerId: string, @Req() req: Request): any {
     const payload = req.user as { sub: string };
     if (payload.sub !== ownerId) {
-      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok');
+      throw new ForbiddenException('Sadece kendi ilanlarınıza ait teklifleri görüntüleyebilirsiniz.');
     }
     return this.offersService.findByOwner(ownerId);
   }

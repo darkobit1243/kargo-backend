@@ -42,10 +42,10 @@ export class OffersService {
       where: { id: dto.listingId },
     });
     if (!listing) {
-      throw new BadRequestException('Listing bulunamadı');
+      throw new BadRequestException('İlan bulunamadı. Lütfen geçerli bir ilan seçtiğinizden emin olun.');
     }
     if (listing.ownerId === dto.proposerId) {
-      throw new BadRequestException('Kendi ilanınıza teklif veremezsiniz');
+      throw new BadRequestException('Kendi oluşturduğunuz ilana teklif veremezsiniz.');
     }
 
     // If listing already has an accepted offer, it is no longer offerable.
@@ -53,9 +53,7 @@ export class OffersService {
       where: { listingId: dto.listingId, status: 'accepted' },
     });
     if (alreadyAccepted) {
-      throw new BadRequestException(
-        'Bu ilan için zaten kabul edilmiş teklif var',
-      );
+      throw new BadRequestException('Bu ilan için zaten kabul edilmiş bir teklif mevcut.');
     }
 
     const offer = this.offersRepository.create({
@@ -114,10 +112,10 @@ export class OffersService {
       where: { id: listingId },
     });
     if (!listing) {
-      throw new BadRequestException('Listing bulunamadı');
+      throw new BadRequestException('İlan bulunamadı. Lütfen geçerli bir ilan seçtiğinizden emin olun.');
     }
     if (listing.ownerId !== ownerId) {
-      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok');
+      throw new ForbiddenException('Bu kayıtlara erişim yetkiniz yok. Sadece kendi ilanlarınıza ait teklifleri görüntüleyebilirsiniz.');
     }
   }
 
@@ -199,9 +197,7 @@ export class OffersService {
       where: { listingId: offer.listingId, status: 'accepted' },
     });
     if (existingAccepted && existingAccepted.id !== id) {
-      throw new BadRequestException(
-        'Bu ilan için zaten başka bir teklif kabul edilmiş',
-      );
+      throw new BadRequestException('Bu ilan için zaten başka bir teklif kabul edilmiş.');
     }
 
     // Aynı listing için daha önce kabul edilmiş teklif varsa hepsini reddet

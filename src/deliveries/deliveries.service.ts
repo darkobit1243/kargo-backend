@@ -55,7 +55,7 @@ export class DeliveriesService {
     };
 
     if (!allowed[from]?.includes(to)) {
-      throw new BadRequestException(`Geçersiz durum geçişi: ${from} -> ${to}`);
+      throw new BadRequestException(`İşlem geçersiz: '${from}' durumundan '${to}' durumuna geçiş yapılamaz.`);
     }
   }
 
@@ -106,7 +106,7 @@ export class DeliveriesService {
     const json = this.config.get<string>('FIREBASE_SERVICE_ACCOUNT_JSON');
     const projectId = this.config.get<string>('FIREBASE_PROJECT_ID');
     if (!json || !json.trim().startsWith('{')) {
-      throw new BadRequestException('Firebase admin yapılandırması yok');
+      throw new BadRequestException('Sunucu yapılandırmasında eksik Firebase anahtarı. Lütfen sistem yöneticisine başvurun.');
     }
     try {
       const creds = JSON.parse(json);
@@ -115,7 +115,7 @@ export class DeliveriesService {
         projectId: creds.project_id ?? projectId,
       });
     } catch (_) {
-      throw new BadRequestException('Firebase admin başlatılamadı');
+      throw new BadRequestException('Sunucu üzerinde Firebase servisi başlatılamadı. Lütfen tekrar deneyin veya yöneticinize başvurun.');
     }
   }
 
@@ -187,18 +187,16 @@ export class DeliveriesService {
   async markAtDoor(id: string, carrierId: string): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
-      throw new BadRequestException('Teslimat bulunamadı');
+      throw new BadRequestException('Teslimat kaydı bulunamadı. Lütfen geçerli bir teslimat seçtiğinizden emin olun.');
     }
     if (delivery.status !== 'in_transit') {
-      throw new BadRequestException(
-        'Kapıda durumu yalnızca yoldayken işaretlenebilir',
-      );
+      throw new BadRequestException('Kapıda olarak işaretleme işlemi yalnızca teslimat yoldayken yapılabilir.');
     }
     if (delivery.carrierId && delivery.carrierId !== carrierId) {
-      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı siz değilsiniz.');
     }
     if (!delivery.carrierId) {
-      throw new BadRequestException('Teslimatın taşıyıcısı yok');
+      throw new BadRequestException('Teslimat için atanmış bir taşıyıcı bulunamadı.');
     }
 
     this.assertTransition(delivery.status, 'at_door');
@@ -285,10 +283,10 @@ export class DeliveriesService {
       );
     }
     if (delivery.carrierId && delivery.carrierId !== carrierId) {
-      throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı siz değilsiniz.');
     }
     if (!delivery.carrierId) {
-      throw new BadRequestException('Teslimatın taşıyıcısı yok');
+      throw new BadRequestException('Teslimat için atanmış bir taşıyıcı bulunamadı.');
     }
 
     // Geçici istek (22.12.2025): Taşıyıcı “Kod Gönder”e basınca direkt teslim edildi yap.

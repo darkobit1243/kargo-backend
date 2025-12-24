@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -127,7 +128,7 @@ export class AuthService {
 
   async register(
     user: RegisterUserDto,
-  ): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
+  ): Promise<{ token: string; refreshToken: string; role: UserRole; user: AuthResponseUser }> {
     if (this.config.get<string>('AUTH_LOG_REGISTER', 'false') === 'true') {
       console.log('[AUTH] register payload', {
         email: user.email,
@@ -191,8 +192,13 @@ export class AuthService {
         return repo.save(created);
       },
     );
+    // Refresh token üret ve kaydet
+    const refreshToken = randomBytes(64).toString('hex');
+    saved.refreshToken = refreshToken;
+    await this.usersRepository.save(saved);
     return {
       token: this.signToken(saved),
+      refreshToken,
       role: saved.role,
       user: this.sanitize(saved),
     };
@@ -201,7 +207,7 @@ export class AuthService {
   async login(user: {
     email: string;
     password: string;
-  }): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
+  }): Promise<{ token: string; refreshToken: string; role: UserRole; user: AuthResponseUser }> {
     const found = await this.usersRepository.findOne({
       where: { email: user.email },
     });
@@ -218,11 +224,31 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    // Refresh token üret ve kaydet
+    const refreshToken = randomBytes(64).toString('hex');
+    found.refreshToken = refreshToken;
+    await this.usersRepository.save(found);
     return {
       token: this.signToken(found),
+      refreshToken,
       role: found.role,
       user: this.sanitize(found),
     };
+    async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string }> {
+      // Refresh token ile kullanıcıyı bul
+      const user = await this.usersRepository.findOne({ where: { refreshToken } });
+      if (!user) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+      // Yeni access token ve refresh token üret
+      const newRefreshToken = randomBytes(64).toString('hex');
+      user.refreshToken = newRefreshToken;
+      await this.usersRepository.save(user);
+      return {
+        token: this.signToken(user),
+        refreshToken: newRefreshToken,
+      };
+    }
   }
 
   async findById(id: string): Promise<AuthResponseUser> {

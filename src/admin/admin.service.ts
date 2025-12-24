@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AdminAuditLog } from './admin-audit-log.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Like } from 'typeorm';
 import { User, UserRole } from '../auth/user.entity';
@@ -14,6 +15,8 @@ export class AdminService {
     private readonly listingsRepository: Repository<Listing>,
     @InjectRepository(Delivery)
     private readonly deliveriesRepository: Repository<Delivery>,
+    @InjectRepository(AdminAuditLog)
+    private readonly auditLogRepository: Repository<AdminAuditLog>,
   ) {}
 
   async getStats() {
@@ -93,20 +96,33 @@ export class AdminService {
     };
   }
 
-  async verifyUser(userId: string, isVerified: boolean): Promise<User> {
+  async verifyUser(userId: string, isVerified: boolean, adminId?: string): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-
     user.isVerified = isVerified;
-    return this.usersRepository.save(user);
-    // TODO: Send notification to user (Carrier application approved/rejected)
+    const saved = await this.usersRepository.save(user);
+    if (adminId) {
+      await this.auditLogRepository.save({
+        adminId,
+        action: isVerified ? 'verifyUser' : 'rejectUser',
+        details: { userId },
+      });
+    }
+    return saved;
   }
 
-  async setUserActiveStatus(userId: string, isActive: boolean): Promise<User> {
+  async setUserActiveStatus(userId: string, isActive: boolean, adminId?: string): Promise<User> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-
     user.isActive = isActive;
-    return this.usersRepository.save(user);
+    const saved = await this.usersRepository.save(user);
+    if (adminId) {
+      await this.auditLogRepository.save({
+        adminId,
+        action: isActive ? 'unbanUser' : 'banUser',
+        details: { userId },
+      });
+    }
+    return saved;
   }
 }

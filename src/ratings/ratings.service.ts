@@ -31,22 +31,22 @@ export class RatingsService {
       where: { id: dto.deliveryId },
     });
     if (!delivery) {
-      throw new NotFoundException('Delivery not found');
+      throw new NotFoundException('İlgili teslimat bulunamadı. Lütfen geçerli bir teslimat seçtiğinizden emin olun.');
     }
 
     if (delivery.status !== 'delivered') {
-      throw new BadRequestException('Delivery is not delivered yet');
+      throw new BadRequestException('Teslimat henüz tamamlanmamış. Yalnızca tamamlanan teslimatlar için puan verebilirsiniz.');
     }
 
     if (!delivery.carrierId) {
-      throw new BadRequestException('Delivery has no carrier');
+      throw new BadRequestException('Bu teslimat için atanmış bir taşıyıcı bulunamadı.');
     }
 
     const listing = await this.listingsRepo.findOne({
       where: { id: delivery.listingId },
     });
     if (!listing) {
-      throw new NotFoundException('Listing not found for delivery');
+      throw new NotFoundException('Teslimata ait ilan bulunamadı. Sistem yöneticisine başvurun.');
     }
 
     const ownerId = listing.ownerId;
@@ -54,7 +54,7 @@ export class RatingsService {
 
     // Only sender -> carrier rating is allowed.
     if (fromUserId !== ownerId) {
-      throw new ForbiddenException('Only the sender can rate the carrier');
+      throw new ForbiddenException('Sadece gönderici, taşıyıcıyı puanlayabilir.');
     }
 
     const toUserId = carrierId;
