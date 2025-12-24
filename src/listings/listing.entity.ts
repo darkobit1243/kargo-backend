@@ -2,7 +2,6 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -36,26 +35,8 @@ export class Listing {
   @Column({ type: 'jsonb' })
   pickup_location: { lat: number; lng: number };
 
-  @Index({ spatial: true })
-  @Column({
-    type: 'geometry',
-    spatialFeatureType: 'Point',
-    srid: 4326,
-    nullable: true,
-  })
-  pickup_point: any;
-
   @Column({ type: 'jsonb' })
   dropoff_location: { lat: number; lng: number };
-
-  @Index({ spatial: true })
-  @Column({
-    type: 'geometry',
-    spatialFeatureType: 'Point',
-    srid: 4326,
-    nullable: true,
-  })
-  dropoff_point: any;
 
   // Receiver (alıcı) phone number at dropoff.
   @Column({ type: 'varchar', nullable: true })

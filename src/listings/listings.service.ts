@@ -18,35 +18,22 @@ export class ListingsService {
     @InjectRepository(Offer)
     private readonly offersRepository: Repository<Offer>,
     private readonly s3Service: S3Service,
-  ) {}
+  ) { }
 
   async create(ownerId: string, dto: CreateListingDto): Promise<Listing> {
     const photoUrls: string[] = [];
     if (dto.photos && Array.isArray(dto.photos)) {
       for (const photo of dto.photos) {
-        // Assume photos are Base64 strings or already URLs
         const url = await this.s3Service.uploadBase64(photo, 'listings');
         photoUrls.push(url);
       }
     }
 
-    // Replace photos with S3 URLs
     const finalDto = { ...dto, photos: photoUrls };
-
-    const pickupPoint = {
-      type: 'Point',
-      coordinates: [dto.pickup_location.lng, dto.pickup_location.lat],
-    };
-    const dropoffPoint = {
-      type: 'Point',
-      coordinates: [dto.dropoff_location.lng, dto.dropoff_location.lat],
-    };
 
     const listing = this.listingsRepository.create({
       ...finalDto,
       ownerId,
-      pickup_point: pickupPoint as any,
-      dropoff_point: dropoffPoint as any,
     });
     return this.listingsRepository.save(listing);
   }
@@ -56,8 +43,6 @@ export class ListingsService {
     lng: number,
     radiusKm: number,
   ): Promise<Listing[]> {
-    const radiusMeters = radiusKm * 1000;
-
     const accepted = await this.offersRepository.find({
       where: { status: 'accepted' },
     });
@@ -69,23 +54,21 @@ export class ListingsService {
       qb.where('listing.id NOT IN (:...ids)', { ids: acceptedListingIds });
     }
 
-    // ST_DWithin(geometry, geometry, meters) -> cast to geography for meters
-    qb.andWhere(
-      `ST_DWithin(
-        listing.pickup_point::geography,
-        ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
-        :radius
-      )`,
-      { lng, lat, radius: radiusMeters },
-    );
+    // Haversine Formula (No PostGIS required)
+    // 6371 * acos(cos(radians(:lat)) * cos(radians((pickup_location->>'lat')::float)) * cos(radians((pickup_location->>'lng')::float) - radians(:lng)) + sin(radians(:lat)) * sin(radians((pickup_location->>'lat')::float)))
+    const distanceSql = `
+      (6371 * acos(
+        cos(radians(:lat)) * 
+        cos(radians((listing.pickup_location->>'lat')::float)) * 
+        cos(radians((listing.pickup_location->>'lng')::float) - radians(:lng)) + 
+        sin(radians(:lat)) * 
+        sin(radians((listing.pickup_location->>'lat')::float))
+      ))
+    `;
 
-    qb.orderBy(
-      `ST_Distance(
-        listing.pickup_point::geography,
-        ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
-      )`,
-      'ASC',
-    );
+    qb.andWhere(`${distanceSql} <= :radius`, { lat, lng, radius: radiusKm });
+    qb.addSelect(distanceSql, 'distance');
+    qb.orderBy('distance', 'ASC');
 
     const listings = await qb.getMany();
 
