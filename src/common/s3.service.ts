@@ -23,13 +23,14 @@ export class S3Service {
     const hasBucket = Boolean(this.bucketName && this.bucketName.trim().length > 0);
 
     if (hasRegion && hasAccessKey && hasSecret && hasBucket) {
+      // We asserted presence above; use non-null assertions to satisfy types
       this.s3Client = new S3Client({
-        region,
+        region: region!,
         credentials: {
-          accessKeyId,
-          secretAccessKey,
+          accessKeyId: accessKeyId!,
+          secretAccessKey: secretAccessKey!,
         },
-      });
+      } as any);
       this.logger.log(`S3 Service initialized for bucket: ${this.bucketName}`);
     } else {
       // Log which parts are missing (mask secrets)
