@@ -1,15 +1,23 @@
-import { Controller, Get, ForbiddenException } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Public } from '../auth/public.decorator';
 
 @Controller('debug')
 export class AwsDebugController {
   constructor(private readonly config: ConfigService) {}
 
   @Get('aws')
+  @Public()
   getAws(): any {
     const env = process.env.NODE_ENV ?? 'development';
     const allow = this.config.get<string>('DEBUG_ALLOW_AWS', 'false') === 'true';
-    if (env === 'production' && !allow) throw new ForbiddenException();
+    if (env === 'production' && !allow) {
+      return {
+        env,
+        enabled: false,
+        reason: 'Disabled in production unless DEBUG_ALLOW_AWS=true',
+      };
+    }
 
     const region = this.config.get<string>('AWS_REGION');
     const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
