@@ -19,10 +19,11 @@ export class PushController {
   async testSelf(
     @Req() req: Request,
     @Body() body: { title?: string; body?: string },
-  ): Promise<{ ok: boolean; enabled: boolean; hasToken: boolean }>
-  {
+  ): Promise<{ ok: boolean; enabled: boolean; hasToken: boolean }> {
     const payload = req.user as { sub: string };
-    const user = await this.usersRepository.findOne({ where: { id: payload.sub } });
+    const user = await this.usersRepository.findOne({
+      where: { id: payload.sub },
+    });
     const token = user?.fcmToken?.toString().trim();
     const hasToken = Boolean(token);
 

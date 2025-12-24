@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { WsGateway } from '../ws/ws.gateway';
@@ -34,7 +38,9 @@ export class OffersService {
     message?: string;
   }): Promise<Offer> {
     // Kendi listingine teklif verememeli
-    const listing = await this.listingsRepository.findOne({ where: { id: dto.listingId } });
+    const listing = await this.listingsRepository.findOne({
+      where: { id: dto.listingId },
+    });
     if (!listing) {
       throw new BadRequestException('Listing bulunamadı');
     }
@@ -47,7 +53,9 @@ export class OffersService {
       where: { listingId: dto.listingId, status: 'accepted' },
     });
     if (alreadyAccepted) {
-      throw new BadRequestException('Bu ilan için zaten kabul edilmiş teklif var');
+      throw new BadRequestException(
+        'Bu ilan için zaten kabul edilmiş teklif var',
+      );
     }
 
     const offer = this.offersRepository.create({
@@ -70,11 +78,16 @@ export class OffersService {
 
     // Critical push: new offer -> notify listing owner (sender)
     try {
-      const owner = await this.usersRepository.findOne({ where: { id: listing.ownerId } });
+      const owner = await this.usersRepository.findOne({
+        where: { id: listing.ownerId },
+      });
       const token = owner?.fcmToken?.toString().trim();
       if (token) {
-        const proposer = await this.usersRepository.findOne({ where: { id: dto.proposerId } });
-        const proposerName = proposer?.fullName ?? proposer?.email ?? 'Taşıyıcı';
+        const proposer = await this.usersRepository.findOne({
+          where: { id: dto.proposerId },
+        });
+        const proposerName =
+          proposer?.fullName ?? proposer?.email ?? 'Taşıyıcı';
         await this.pushService.sendToToken({
           token,
           title: 'Yeni teklif geldi',
@@ -93,8 +106,13 @@ export class OffersService {
     return saved;
   }
 
-  private async assertListingOwnedBy(listingId: string, ownerId: string): Promise<void> {
-    const listing = await this.listingsRepository.findOne({ where: { id: listingId } });
+  private async assertListingOwnedBy(
+    listingId: string,
+    ownerId: string,
+  ): Promise<void> {
+    const listing = await this.listingsRepository.findOne({
+      where: { id: listingId },
+    });
     if (!listing) {
       throw new BadRequestException('Listing bulunamadı');
     }
@@ -107,11 +125,11 @@ export class OffersService {
   async findByListing(listingId: string): Promise<any[]> {
     const offers = await this.offersRepository.find({ where: { listingId } });
     if (!offers.length) return [];
-    const proposerIds = [...new Set(offers.map(o => o.proposerId))];
+    const proposerIds = [...new Set(offers.map((o) => o.proposerId))];
     const users = await this.usersRepository.findByIds(proposerIds);
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
-    return offers.map(o => {
+    return offers.map((o) => {
       const user = userMap.get(o.proposerId);
       return {
         ...o,
@@ -124,7 +142,10 @@ export class OffersService {
   }
 
   // Sadece listing sahibi (sender) için listing teklifler
-  async findByListingForOwner(listingId: string, ownerId: string): Promise<any[]> {
+  async findByListingForOwner(
+    listingId: string,
+    ownerId: string,
+  ): Promise<any[]> {
     await this.assertListingOwnedBy(listingId, ownerId);
     return this.findByListing(listingId);
   }
@@ -133,17 +154,17 @@ export class OffersService {
   async findByOwner(ownerId: string): Promise<any[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
     if (!listings.length) return [];
-    const listingIds = listings.map(l => l.id);
+    const listingIds = listings.map((l) => l.id);
     const offers = await this.offersRepository.find({
       where: { listingId: In(listingIds) },
       order: { createdAt: 'DESC' },
     });
     if (!offers.length) return [];
-    const proposerIds = [...new Set(offers.map(o => o.proposerId))];
+    const proposerIds = [...new Set(offers.map((o) => o.proposerId))];
     const users = await this.usersRepository.findByIds(proposerIds);
-    const userMap = new Map(users.map(u => [u.id, u]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
 
-    return offers.map(o => {
+    return offers.map((o) => {
       const user = userMap.get(o.proposerId);
       return {
         ...o,
@@ -178,7 +199,9 @@ export class OffersService {
       where: { listingId: offer.listingId, status: 'accepted' },
     });
     if (existingAccepted && existingAccepted.id !== id) {
-      throw new BadRequestException('Bu ilan için zaten başka bir teklif kabul edilmiş');
+      throw new BadRequestException(
+        'Bu ilan için zaten başka bir teklif kabul edilmiş',
+      );
     }
 
     // Aynı listing için daha önce kabul edilmiş teklif varsa hepsini reddet
@@ -186,8 +209,7 @@ export class OffersService {
       where: { listingId: offer.listingId },
     });
 
-    const updatedOffers = offersForListing.map(o => {
-      // eslint-disable-next-line no-param-reassign
+    const updatedOffers = offersForListing.map((o) => {
       o.status = o.id === id ? 'accepted' : 'rejected';
       return o;
     });
@@ -229,8 +251,12 @@ export class OffersService {
 
       // Critical push: offer accepted -> notify carrier.
       try {
-        const listing = await this.listingsRepository.findOne({ where: { id: accepted.listingId } });
-        const carrier = await this.usersRepository.findOne({ where: { id: accepted.proposerId } });
+        const listing = await this.listingsRepository.findOne({
+          where: { id: accepted.listingId },
+        });
+        const carrier = await this.usersRepository.findOne({
+          where: { id: accepted.proposerId },
+        });
         const token = carrier?.fcmToken?.toString().trim();
         if (token) {
           await this.pushService.sendToToken({

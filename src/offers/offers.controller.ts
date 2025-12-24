@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Param, Body, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Param,
+  Body,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -27,7 +35,10 @@ export class OffersController {
   @Get('listing/:listingId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('sender')
-  findByListing(@Param('listingId') listingId: string, @Req() req: Request): any {
+  findByListing(
+    @Param('listingId') listingId: string,
+    @Req() req: Request,
+  ): any {
     const payload = req.user as { sub: string };
     return this.offersService.findByListingForOwner(listingId, payload.sub);
   }

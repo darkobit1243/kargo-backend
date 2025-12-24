@@ -31,11 +31,17 @@ export class MessagesService {
     if (this.isOfferSystemMessage(message)) return;
 
     const listingId = message.listingId;
-    const listing = await this.listingRepository.findOne({ where: { id: listingId } });
+    const listing = await this.listingRepository.findOne({
+      where: { id: listingId },
+    });
     const listingTitle = (listing?.title ?? 'Gönderi').toString();
 
-    const senderUserId = message.fromCarrier ? message.carrierId : message.senderId;
-    const recipientUserId = message.fromCarrier ? message.senderId : message.carrierId;
+    const senderUserId = message.fromCarrier
+      ? message.carrierId
+      : message.senderId;
+    const recipientUserId = message.fromCarrier
+      ? message.senderId
+      : message.carrierId;
     if (!senderUserId || !recipientUserId) return;
     if (senderUserId === recipientUserId) return;
 
@@ -47,9 +53,17 @@ export class MessagesService {
     const token = recipientUser?.fcmToken?.toString().trim();
     if (!token) return;
 
-    const senderName = (senderUser?.fullName ?? senderUser?.email ?? 'Bir kullanıcı').toString();
-    const snippetRaw = (message.content ?? '').toString().replace(/\s+/g, ' ').trim();
-    const snippet = snippetRaw.length > 120 ? `${snippetRaw.slice(0, 117)}...` : snippetRaw;
+    const senderName = (
+      senderUser?.fullName ??
+      senderUser?.email ??
+      'Bir kullanıcı'
+    ).toString();
+    const snippetRaw = (message.content ?? '')
+      .toString()
+      .replace(/\s+/g, ' ')
+      .trim();
+    const snippet =
+      snippetRaw.length > 120 ? `${snippetRaw.slice(0, 117)}...` : snippetRaw;
 
     await this.pushService.sendToToken({
       token,
@@ -77,19 +91,23 @@ export class MessagesService {
   async findByListingId(listingId: string, userId: string): Promise<Message[]> {
     return this.messageRepository.find({
       where: [
-      { listingId, senderId: userId },
-      { listingId, carrierId: userId },
+        { listingId, senderId: userId },
+        { listingId, carrierId: userId },
       ],
       order: { createdAt: 'ASC' },
     });
   }
 
-  async findThreads(userId: string): Promise<Array<{ listingId: string; lastMessage: string; fromCarrier: boolean; createdAt: Date }>> {
+  async findThreads(userId: string): Promise<
+    Array<{
+      listingId: string;
+      lastMessage: string;
+      fromCarrier: boolean;
+      createdAt: Date;
+    }>
+  > {
     const rows = await this.messageRepository.find({
-      where: [
-        { senderId: userId },
-        { carrierId: userId },
-      ],
+      where: [{ senderId: userId }, { carrierId: userId }],
       order: { createdAt: 'DESC' },
     });
     const map = new Map<
@@ -123,13 +141,18 @@ export class MessagesService {
     if (!listings.length) {
       return [];
     }
-    const listingMap = new Map(listings.map(listing => [listing.id, listing]));
-    const listingIds = listings.map(listing => listing.id);
+    const listingMap = new Map(
+      listings.map((listing) => [listing.id, listing]),
+    );
+    const listingIds = listings.map((listing) => listing.id);
     const offers = await this.offerRepository.find({
       where: { listingId: In(listingIds) },
       order: { createdAt: 'DESC' },
     });
-    const contacts = new Map<string, { carrierId: string; listingId: string; listingTitle: string }>();
+    const contacts = new Map<
+      string,
+      { carrierId: string; listingId: string; listingTitle: string }
+    >();
     for (const offer of offers) {
       if (!contacts.has(offer.proposerId)) {
         const listing = listingMap.get(offer.listingId);
@@ -143,11 +166,19 @@ export class MessagesService {
     if (!contacts.size) return [];
     const carrierIds = Array.from(contacts.keys());
     const users = await this.userRepository.findByIds(carrierIds);
-    const userMap = new Map(users.map(user => [user.id, { email: user.email, fullName: user.fullName }]));
-    return Array.from(contacts.values()).map(entry => ({
+    const userMap = new Map(
+      users.map((user) => [
+        user.id,
+        { email: user.email, fullName: user.fullName },
+      ]),
+    );
+    return Array.from(contacts.values()).map((entry) => ({
       ...entry,
       carrierEmail: userMap.get(entry.carrierId)?.email ?? 'Carrier',
-      carrierName: userMap.get(entry.carrierId)?.fullName ?? userMap.get(entry.carrierId)?.email ?? 'Carrier',
+      carrierName:
+        userMap.get(entry.carrierId)?.fullName ??
+        userMap.get(entry.carrierId)?.email ??
+        'Carrier',
     }));
   }
 
@@ -160,14 +191,22 @@ export class MessagesService {
     if (!listings.length) {
       return [];
     }
-    const senderIds = [...new Set(listings.map(listing => listing.ownerId))];
+    const senderIds = [...new Set(listings.map((listing) => listing.ownerId))];
     const users = await this.userRepository.findByIds(senderIds);
-    const userMap = new Map(users.map(user => [user.id, { email: user.email, fullName: user.fullName }]));
+    const userMap = new Map(
+      users.map((user) => [
+        user.id,
+        { email: user.email, fullName: user.fullName },
+      ]),
+    );
     const listingCounts = new Map<string, number>();
     for (const listing of listings) {
-      listingCounts.set(listing.ownerId, (listingCounts.get(listing.ownerId) ?? 0) + 1);
+      listingCounts.set(
+        listing.ownerId,
+        (listingCounts.get(listing.ownerId) ?? 0) + 1,
+      );
     }
-    return senderIds.map(senderId => ({
+    return senderIds.map((senderId) => ({
       senderId,
       senderEmail: userMap.get(senderId)?.email ?? 'Sender',
       senderName: userMap.get(senderId)?.fullName ?? 'Gönderici',
@@ -175,4 +214,3 @@ export class MessagesService {
     }));
   }
 }
-

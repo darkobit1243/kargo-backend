@@ -59,7 +59,10 @@ describe('DeliveriesService', () => {
         { provide: SmsService, useValue: smsService },
         { provide: PushService, useValue: pushService },
         { provide: ConfigService, useValue: configService },
-        { provide: getRepositoryToken(Delivery), useValue: deliveriesRepository },
+        {
+          provide: getRepositoryToken(Delivery),
+          useValue: deliveriesRepository,
+        },
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
         { provide: getRepositoryToken(Offer), useValue: offersRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },
@@ -82,7 +85,9 @@ describe('DeliveriesService', () => {
       listingId: 'l1',
     });
 
-    await expect(service.deliver('d1', 'carrier_b')).rejects.toThrow('Bu teslimatın taşıyıcısı değilsiniz');
+    await expect(service.deliver('d1', 'carrier_b')).rejects.toThrow(
+      'Bu teslimatın taşıyıcısı değilsiniz',
+    );
   });
 
   it('deliver should set delivered and bump deliveredCount for carrier and owner', async () => {
@@ -94,7 +99,10 @@ describe('DeliveriesService', () => {
     };
     deliveriesRepository.findOne.mockResolvedValue(delivery);
     deliveriesRepository.save.mockImplementation(async (d: any) => d);
-    listingsRepository.findOne.mockResolvedValue({ id: 'l1', ownerId: 'owner_a' });
+    listingsRepository.findOne.mockResolvedValue({
+      id: 'l1',
+      ownerId: 'owner_a',
+    });
 
     const qb = {
       update: jest.fn().mockReturnThis(),

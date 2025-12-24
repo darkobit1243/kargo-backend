@@ -31,7 +31,6 @@ async function bootstrap() {
       const result = await db.query('SELECT NOW()');
       res.send(result.rows);
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.error('Error running test query:', error);
       res.status(500).send('Database error');
     }

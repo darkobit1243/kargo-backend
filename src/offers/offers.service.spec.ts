@@ -28,10 +28,23 @@ describe('OffersService', () => {
     findOne: jest.fn(),
     find: jest.fn(),
   };
-  const deliveriesRepository = { create: jest.fn(), save: jest.fn(), findOne: jest.fn(), find: jest.fn() };
+  const deliveriesRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    findOne: jest.fn(),
+    find: jest.fn(),
+  };
   const listingsRepository = { findOne: jest.fn(), find: jest.fn() };
-  const messagesRepository = { create: jest.fn(), save: jest.fn(), find: jest.fn() };
-  const usersRepository = { findOne: jest.fn(), findByIds: jest.fn(), find: jest.fn() };
+  const messagesRepository = {
+    create: jest.fn(),
+    save: jest.fn(),
+    find: jest.fn(),
+  };
+  const usersRepository = {
+    findOne: jest.fn(),
+    findByIds: jest.fn(),
+    find: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -40,7 +53,10 @@ describe('OffersService', () => {
         { provide: WsGateway, useValue: wsGateway },
         { provide: PushService, useValue: pushService },
         { provide: getRepositoryToken(Offer), useValue: offersRepository },
-        { provide: getRepositoryToken(Delivery), useValue: deliveriesRepository },
+        {
+          provide: getRepositoryToken(Delivery),
+          useValue: deliveriesRepository,
+        },
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
         { provide: getRepositoryToken(Message), useValue: messagesRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },

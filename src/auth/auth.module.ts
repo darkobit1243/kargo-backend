@@ -15,7 +15,7 @@ import { RolesGuard } from './roles.guard';
     JwtModule.registerAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const expiresIn = config.get<string>('JWT_EXPIRES_IN', '1h');
+        const expiresIn = config.get<string>('JWT_EXPIRES_IN', '365d');
         return {
           secret: config.get<string>('JWT_SECRET', 'change_this_in_production'),
           // NestJS JWT v11'de tip uyuşmazlığını önlemek için string değeri cast ediyoruz.

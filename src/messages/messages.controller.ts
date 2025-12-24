@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { Request } from 'express';
 import { MessagesService } from './messages.service';
@@ -8,7 +16,10 @@ import { CreateMessageDto } from './dto/create-message.dto';
 @Controller('messages')
 @UseGuards(JwtAuthGuard)
 export class MessagesController {
-  constructor(private readonly messagesService: MessagesService, private readonly wsGateway: WsGateway) {}
+  constructor(
+    private readonly messagesService: MessagesService,
+    private readonly wsGateway: WsGateway,
+  ) {}
 
   @Get()
   async threads(@Req() req: Request) {
@@ -42,4 +53,3 @@ export class MessagesController {
     return this.messagesService.getCarrierContacts(payload.sub);
   }
 }
-

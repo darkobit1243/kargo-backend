@@ -1,4 +1,9 @@
-import { Injectable, ConflictException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
@@ -84,7 +89,9 @@ export class AuthService {
   }
 
   private async ensurePublicId(userId: string): Promise<User> {
-    const existing = await this.usersRepository.findOne({ where: { id: userId } });
+    const existing = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
     if (!existing) {
       throw new NotFoundException('User not found');
     }
@@ -100,7 +107,9 @@ export class AuthService {
       if (fresh.publicId != null) return fresh;
 
       await manager.query('LOCK TABLE users IN EXCLUSIVE MODE');
-      const rows = await manager.query('SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users');
+      const rows = await manager.query(
+        'SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users',
+      );
       const next = Number(rows?.[0]?.next ?? 1);
       fresh.publicId = next;
       return repo.save(fresh);
@@ -109,12 +118,17 @@ export class AuthService {
 
   private signToken(user: User): string {
     const resolvedRole: UserRole = user.role ?? 'sender';
-    return this.jwtService.sign({ sub: user.id, email: user.email, role: resolvedRole });
+    return this.jwtService.sign({
+      sub: user.id,
+      email: user.email,
+      role: resolvedRole,
+    });
   }
 
-  async register(user: RegisterUserDto): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
+  async register(
+    user: RegisterUserDto,
+  ): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
     if (this.config.get<string>('AUTH_LOG_REGISTER', 'false') === 'true') {
-      // eslint-disable-next-line no-console
       console.log('[AUTH] register payload', {
         email: user.email,
         role: user.role,
@@ -133,7 +147,9 @@ export class AuthService {
       });
     }
 
-    const existing = await this.usersRepository.findOne({ where: { email: user.email } });
+    const existing = await this.usersRepository.findOne({
+      where: { email: user.email },
+    });
     if (existing) {
       throw new ConflictException('Email already in use');
     }
@@ -163,14 +179,18 @@ export class AuthService {
     });
 
     // Assign sequential publicId at creation time.
-    const saved = await this.usersRepository.manager.transaction(async (manager) => {
-      await manager.query('LOCK TABLE users IN EXCLUSIVE MODE');
-      const rows = await manager.query('SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users');
-      const next = Number(rows?.[0]?.next ?? 1);
-      const repo = manager.getRepository(User);
-      const created = repo.create({ ...newUser, publicId: next });
-      return repo.save(created);
-    });
+    const saved = await this.usersRepository.manager.transaction(
+      async (manager) => {
+        await manager.query('LOCK TABLE users IN EXCLUSIVE MODE');
+        const rows = await manager.query(
+          'SELECT COALESCE(MAX("publicId"), 0) + 1 AS next FROM users',
+        );
+        const next = Number(rows?.[0]?.next ?? 1);
+        const repo = manager.getRepository(User);
+        const created = repo.create({ ...newUser, publicId: next });
+        return repo.save(created);
+      },
+    );
     return {
       token: this.signToken(saved),
       role: saved.role,
@@ -178,8 +198,13 @@ export class AuthService {
     };
   }
 
-  async login(user: { email: string; password: string }): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
-    const found = await this.usersRepository.findOne({ where: { email: user.email } });
+  async login(user: {
+    email: string;
+    password: string;
+  }): Promise<{ token: string; role: UserRole; user: AuthResponseUser }> {
+    const found = await this.usersRepository.findOne({
+      where: { email: user.email },
+    });
     if (!found) {
       throw new UnauthorizedException('Invalid credentials');
     }

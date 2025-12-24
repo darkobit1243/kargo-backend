@@ -1,4 +1,9 @@
-import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
@@ -31,10 +36,15 @@ export class DeliveriesService {
   ) {}
 
   private isFinalStatus(status: Delivery['status']): boolean {
-    return status === 'delivered' || status === 'cancelled' || status === 'disputed';
+    return (
+      status === 'delivered' || status === 'cancelled' || status === 'disputed'
+    );
   }
 
-  private assertTransition(from: Delivery['status'], to: Delivery['status']): void {
+  private assertTransition(
+    from: Delivery['status'],
+    to: Delivery['status'],
+  ): void {
     const allowed: Record<Delivery['status'], Array<Delivery['status']>> = {
       pickup_pending: ['in_transit', 'cancelled'],
       in_transit: ['at_door', 'delivered', 'cancelled'],
@@ -50,7 +60,11 @@ export class DeliveriesService {
   }
 
   private async notifyCriticalDeliveryEvent(params: {
-    type: 'delivery_cancelled' | 'delivery_at_door' | 'delivery_delivered' | 'delivery_disputed';
+    type:
+      | 'delivery_cancelled'
+      | 'delivery_at_door'
+      | 'delivery_delivered'
+      | 'delivery_disputed';
     deliveryId: string;
     listingId: string;
     ownerId?: string | null;
@@ -58,15 +72,17 @@ export class DeliveriesService {
     title: string;
     body: string;
   }): Promise<void> {
-    const recipientIds = [params.ownerId, params.carrierId].filter(Boolean) as string[];
+    const recipientIds = [params.ownerId, params.carrierId].filter(
+      Boolean,
+    ) as string[];
     if (recipientIds.length === 0) return;
     try {
       const users = await this.usersRepository.findByIds(recipientIds);
       await Promise.all(
         users
-          .map(u => u?.fcmToken?.toString().trim())
+          .map((u) => u?.fcmToken?.toString().trim())
           .filter((t): t is string => Boolean(t))
-          .map(token =>
+          .map((token) =>
             this.pushService.sendToToken({
               token,
               title: params.title,
@@ -142,10 +158,18 @@ export class DeliveriesService {
     return this.deliveriesRepository.save(delivery);
   }
 
-  async pickup(id: string, carrierId: string, qrToken?: string): Promise<Delivery | null> {
+  async pickup(
+    id: string,
+    carrierId: string,
+    qrToken?: string,
+  ): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (delivery && delivery.status === 'pickup_pending') {
-      if (!qrToken || !delivery.pickupQrToken || qrToken !== delivery.pickupQrToken) {
+      if (
+        !qrToken ||
+        !delivery.pickupQrToken ||
+        qrToken !== delivery.pickupQrToken
+      ) {
         throw new BadRequestException('QR doğrulaması gerekli');
       }
       this.assertTransition(delivery.status, 'in_transit');
@@ -166,7 +190,9 @@ export class DeliveriesService {
       throw new BadRequestException('Teslimat bulunamadı');
     }
     if (delivery.status !== 'in_transit') {
-      throw new BadRequestException('Kapıda durumu yalnızca yoldayken işaretlenebilir');
+      throw new BadRequestException(
+        'Kapıda durumu yalnızca yoldayken işaretlenebilir',
+      );
     }
     if (delivery.carrierId && delivery.carrierId !== carrierId) {
       throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
@@ -180,7 +206,9 @@ export class DeliveriesService {
     const saved = await this.deliveriesRepository.save(delivery);
     this.wsGateway.sendDeliveryUpdate(id, saved);
 
-    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const listing = await this.listingsRepository.findOne({
+      where: { id: delivery.listingId },
+    });
     await this.notifyCriticalDeliveryEvent({
       type: 'delivery_at_door',
       deliveryId: saved.id,
@@ -196,7 +224,10 @@ export class DeliveriesService {
 
   async deliver(id: string, carrierId: string): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
-    if (delivery && (delivery.status === 'in_transit' || delivery.status === 'at_door')) {
+    if (
+      delivery &&
+      (delivery.status === 'in_transit' || delivery.status === 'at_door')
+    ) {
       if (delivery.carrierId && delivery.carrierId !== carrierId) {
         throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
       }
@@ -211,7 +242,9 @@ export class DeliveriesService {
 
       // Update delivery stats
       await this.bumpDeliveredCount(delivery.carrierId);
-      const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+      const listing = await this.listingsRepository.findOne({
+        where: { id: delivery.listingId },
+      });
       if (listing?.ownerId) {
         await this.bumpDeliveredCount(listing.ownerId);
       }
@@ -224,8 +257,8 @@ export class DeliveriesService {
         listingId: saved.listingId,
         ownerId: listing?.ownerId ?? null,
         carrierId: saved.carrierId ?? null,
-          title: 'Teslim edildi',
-          body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
+        title: 'Teslim edildi',
+        body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
       });
 
       return saved;
@@ -238,13 +271,18 @@ export class DeliveriesService {
    * NOTE: SMS integration is not wired yet; we log the code for now.
    * As requested, we currently auto-approve the delivery without receiver auth.
    */
-  async sendDeliveryCode(id: string, carrierId: string): Promise<Delivery | null> {
+  async sendDeliveryCode(
+    id: string,
+    carrierId: string,
+  ): Promise<Delivery | null> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
       throw new BadRequestException('Teslimat bulunamadı');
     }
     if (delivery.status !== 'in_transit' && delivery.status !== 'at_door') {
-      throw new BadRequestException('Kod yalnızca yoldaki/kapıdaki teslimatlarda gönderilebilir');
+      throw new BadRequestException(
+        'Kod yalnızca yoldaki/kapıdaki teslimatlarda gönderilebilir',
+      );
     }
     if (delivery.carrierId && delivery.carrierId !== carrierId) {
       throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
@@ -255,7 +293,9 @@ export class DeliveriesService {
 
     // Geçici istek (22.12.2025): Taşıyıcı “Kod Gönder”e basınca direkt teslim edildi yap.
     // Daha sonra gerçek OTP/SMS/receiver doğrulama akışına geri döneceğiz.
-    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const listing = await this.listingsRepository.findOne({
+      where: { id: delivery.listingId },
+    });
     this.assertTransition(delivery.status, 'delivered');
     delivery.status = 'delivered';
     delivery.deliveredAt = new Date();
@@ -274,8 +314,8 @@ export class DeliveriesService {
       listingId: saved.listingId,
       ownerId: listing?.ownerId ?? null,
       carrierId: saved.carrierId ?? null,
-        title: 'Teslim edildi',
-        body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
+      title: 'Teslim edildi',
+      body: `${listing?.title ?? 'Gönderi'} teslim edildi.`,
     });
 
     return saved;
@@ -305,15 +345,21 @@ export class DeliveriesService {
       throw new BadRequestException('Teslimatın taşıyıcısı yok');
     }
 
-    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
-    const expectedPhone = this.normalizePhoneForCompare(listing?.receiver_phone?.toString() ?? '');
+    const listing = await this.listingsRepository.findOne({
+      where: { id: delivery.listingId },
+    });
+    const expectedPhone = this.normalizePhoneForCompare(
+      listing?.receiver_phone?.toString() ?? '',
+    );
     if (!expectedPhone) {
       throw new BadRequestException('Alıcı telefon numarası girilmemiş');
     }
 
     this.ensureFirebaseAdminInitialized();
     const decoded = await admin.auth().verifyIdToken(token);
-    const tokenPhone = this.normalizePhoneForCompare((decoded as any)?.phone_number ?? '');
+    const tokenPhone = this.normalizePhoneForCompare(
+      (decoded as any)?.phone_number ?? '',
+    );
     if (!tokenPhone) {
       throw new BadRequestException('Firebase token içinde phone_number yok');
     }
@@ -346,7 +392,10 @@ export class DeliveriesService {
     return saved;
   }
 
-  async cancel(id: string, actor: { id: string; role: 'sender' | 'carrier' }): Promise<Delivery> {
+  async cancel(
+    id: string,
+    actor: { id: string; role: 'sender' | 'carrier' },
+  ): Promise<Delivery> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
       throw new BadRequestException('Teslimat bulunamadı');
@@ -355,7 +404,9 @@ export class DeliveriesService {
       throw new BadRequestException('Final durumdaki teslimat iptal edilemez');
     }
 
-    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const listing = await this.listingsRepository.findOne({
+      where: { id: delivery.listingId },
+    });
     if (!listing) {
       throw new BadRequestException('Listing bulunamadı');
     }
@@ -391,16 +442,23 @@ export class DeliveriesService {
     return saved;
   }
 
-  async dispute(id: string, actor: { id: string; role: 'sender' | 'carrier' }): Promise<Delivery> {
+  async dispute(
+    id: string,
+    actor: { id: string; role: 'sender' | 'carrier' },
+  ): Promise<Delivery> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
       throw new BadRequestException('Teslimat bulunamadı');
     }
     if (delivery.status !== 'delivered') {
-      throw new BadRequestException('Uyuşmazlık yalnızca teslim edilmiş teslimatlarda açılabilir');
+      throw new BadRequestException(
+        'Uyuşmazlık yalnızca teslim edilmiş teslimatlarda açılabilir',
+      );
     }
 
-    const listing = await this.listingsRepository.findOne({ where: { id: delivery.listingId } });
+    const listing = await this.listingsRepository.findOne({
+      where: { id: delivery.listingId },
+    });
     if (!listing) {
       throw new BadRequestException('Listing bulunamadı');
     }
@@ -433,7 +491,12 @@ export class DeliveriesService {
     return saved;
   }
 
-  async updateLocation(id: string, carrierId: string, lat: number, lng: number): Promise<Delivery> {
+  async updateLocation(
+    id: string,
+    carrierId: string,
+    lat: number,
+    lng: number,
+  ): Promise<Delivery> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
       throw new BadRequestException('Teslimat bulunamadı');
@@ -442,7 +505,9 @@ export class DeliveriesService {
       throw new ForbiddenException('Bu teslimatın taşıyıcısı değilsiniz');
     }
     if (delivery.status !== 'in_transit' && delivery.status !== 'at_door') {
-      throw new BadRequestException('Konum güncelleme yalnızca yolda/kapıdayken yapılabilir');
+      throw new BadRequestException(
+        'Konum güncelleme yalnızca yolda/kapıdayken yapılabilir',
+      );
     }
     if (!delivery.trackingEnabled) {
       throw new BadRequestException('Canlı takip aktif değil');
@@ -464,11 +529,16 @@ export class DeliveriesService {
   }
 
   async findByCarrier(carrierId: string): Promise<any[]> {
-    const deliveries = await this.deliveriesRepository.find({ where: { carrierId } });
+    const deliveries = await this.deliveriesRepository.find({
+      where: { carrierId },
+    });
     const toFix = deliveries
-      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().length === 0))
-      .map(d => {
-        // eslint-disable-next-line no-param-reassign
+      .filter(
+        (d) =>
+          d.status === 'pickup_pending' &&
+          (!d.pickupQrToken || d.pickupQrToken.trim().length === 0),
+      )
+      .map((d) => {
         d.pickupQrToken = this.generateQrToken();
         return d;
       });
@@ -476,13 +546,15 @@ export class DeliveriesService {
       await this.deliveriesRepository.save(toFix);
     }
 
-    const listingIds = [...new Set(deliveries.map(d => d.listingId).filter(Boolean))];
+    const listingIds = [
+      ...new Set(deliveries.map((d) => d.listingId).filter(Boolean)),
+    ];
     const listings = listingIds.length
       ? await this.listingsRepository.find({ where: { id: In(listingIds) } })
       : [];
-    const listingMap = new Map(listings.map(l => [l.id, l]));
+    const listingMap = new Map(listings.map((l) => [l.id, l]));
 
-    return deliveries.map(d => {
+    return deliveries.map((d) => {
       const listing = listingMap.get(d.listingId);
       return {
         ...d,
@@ -511,14 +583,19 @@ export class DeliveriesService {
   async findByOwner(ownerId: string): Promise<any[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
     if (!listings.length) return [];
-    const listingIds = listings.map(l => l.id);
-    const deliveries = await this.deliveriesRepository.find({ where: { listingId: In(listingIds) } });
+    const listingIds = listings.map((l) => l.id);
+    const deliveries = await this.deliveriesRepository.find({
+      where: { listingId: In(listingIds) },
+    });
 
     // Backfill: older rows may have null pickupQrToken (sender then can't show QR).
     const toFix = deliveries
-      .filter(d => d.status === 'pickup_pending' && (!d.pickupQrToken || d.pickupQrToken.trim().length === 0))
-      .map(d => {
-        // eslint-disable-next-line no-param-reassign
+      .filter(
+        (d) =>
+          d.status === 'pickup_pending' &&
+          (!d.pickupQrToken || d.pickupQrToken.trim().length === 0),
+      )
+      .map((d) => {
         d.pickupQrToken = this.generateQrToken();
         return d;
       });
@@ -526,18 +603,26 @@ export class DeliveriesService {
       await this.deliveriesRepository.save(toFix);
     }
 
-    const listingMap = new Map(listings.map(l => [l.id, l]));
+    const listingMap = new Map(listings.map((l) => [l.id, l]));
 
-    const carrierIds = [...new Set(deliveries.map(d => d.carrierId).filter(Boolean))] as string[];
-    const carriers = carrierIds.length ? await this.usersRepository.findByIds(carrierIds) : [];
-    const carrierMap = new Map(carriers.map(c => [c.id, c]));
+    const carrierIds = [
+      ...new Set(deliveries.map((d) => d.carrierId).filter(Boolean)),
+    ] as string[];
+    const carriers = carrierIds.length
+      ? await this.usersRepository.findByIds(carrierIds)
+      : [];
+    const carrierMap = new Map(carriers.map((c) => [c.id, c]));
 
     const acceptedOffers = listingIds.length
-      ? await this.offersRepository.find({ where: { listingId: In(listingIds), status: 'accepted' } })
+      ? await this.offersRepository.find({
+          where: { listingId: In(listingIds), status: 'accepted' },
+        })
       : [];
-    const acceptedOfferMap = new Map(acceptedOffers.map(o => [o.listingId, o]));
+    const acceptedOfferMap = new Map(
+      acceptedOffers.map((o) => [o.listingId, o]),
+    );
 
-    return deliveries.map(d => {
+    return deliveries.map((d) => {
       const listing = listingMap.get(d.listingId);
       const carrier = d.carrierId ? carrierMap.get(d.carrierId) : null;
       const acceptedOffer = acceptedOfferMap.get(d.listingId);

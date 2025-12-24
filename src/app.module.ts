@@ -16,10 +16,14 @@ import { Listing } from './listings/listing.entity';
 import { Offer } from './offers/offer.entity';
 import { Delivery } from './deliveries/delivery.entity';
 import { PushModule } from './push/push.module';
+import { CommonModule } from './common/common.module';
 import { Rating } from './ratings/rating.entity';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
+    CommonModule,
+    AdminModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

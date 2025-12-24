@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateIf } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  ValidateIf,
+} from 'class-validator';
 import type { UserRole } from '../user.entity';
 
 export class RegisterUserDto {
@@ -25,22 +32,22 @@ export class RegisterUserDto {
   @IsString()
   address?: string;
 
-  @ValidateIf(o => o.role === 'sender')
+  @ValidateIf((o) => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   companyName?: string;
 
-  @ValidateIf(o => o.role === 'sender')
+  @ValidateIf((o) => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   taxNumber?: string;
 
-  @ValidateIf(o => o.role === 'sender')
+  @ValidateIf((o) => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   taxOffice?: string;
 
-  @ValidateIf(o => o.role === 'sender')
+  @ValidateIf((o) => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   activityArea?: string;
@@ -62,18 +69,18 @@ export class RegisterUserDto {
   @IsString()
   district?: string;
 
-  @ValidateIf(o => o.role === 'sender')
+  @ValidateIf((o) => o.role === 'sender')
   @IsString()
   @IsNotEmpty()
   avatarUrl?: string;
 
   // Carrier required fields
-  @ValidateIf(o => o.role === 'carrier')
+  @ValidateIf((o) => o.role === 'carrier')
   @IsString()
   @IsNotEmpty()
   vehicleType?: string;
 
-  @ValidateIf(o => o.role === 'carrier')
+  @ValidateIf((o) => o.role === 'carrier')
   @IsString()
   @IsNotEmpty()
   vehiclePlate?: string;
@@ -89,4 +96,3 @@ export class RegisterUserDto {
   @IsOptional()
   deliveredCount?: number;
 }
-

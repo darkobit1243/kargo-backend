@@ -17,4 +17,3 @@ export class CreateMessageDto {
   @IsNotEmpty()
   carrierId: string;
 }
-

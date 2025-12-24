@@ -64,5 +64,3 @@ export class Delivery {
   @Column({ type: 'timestamptz', nullable: true })
   lastLocationAt?: Date;
 }
-
-

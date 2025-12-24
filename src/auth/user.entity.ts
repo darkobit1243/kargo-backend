@@ -1,11 +1,25 @@
-import { Column, Entity, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Column,
+  Entity,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
-export type UserRole = 'sender' | 'carrier';
+export type UserRole = 'sender' | 'carrier' | 'admin';
 
 @Entity({ name: 'users' })
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  // ... (existing columns)
+
+  @Column({ default: false })
+  isVerified: boolean;
+
+  @Column({ default: true })
+  isActive: boolean;
 
   // Human-friendly sequential ID (unique). Assigned on first read/registration.
   @Column({ type: 'int', unique: true, nullable: true })
@@ -83,5 +97,3 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-
-

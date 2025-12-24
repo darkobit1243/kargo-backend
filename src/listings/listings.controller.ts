@@ -1,4 +1,15 @@
-import { Controller, Get, Post, Body, Param, Req, UseGuards, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+  UseGuards,
+  ForbiddenException,
+  Logger,
+  Query,
+} from '@nestjs/common';
 import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -18,7 +29,9 @@ export class ListingsController {
     const payload = req.user as { sub: string };
     const photosCount = Array.isArray(dto.photos) ? dto.photos.length : 0;
     const firstPhotoSize =
-      photosCount > 0 && typeof dto.photos[0] === 'string' ? dto.photos[0].length : 0;
+      photosCount > 0 && typeof dto.photos[0] === 'string'
+        ? dto.photos[0].length
+        : 0;
     this.logger.log(
       `create listing: title="${dto.title}" weight=${dto.weight} photos=${photosCount} firstPhotoSize=${firstPhotoSize}`,
     );
@@ -28,6 +41,17 @@ export class ListingsController {
   @Get()
   findAll() {
     return this.listingsService.findAll();
+  }
+
+  @Get('nearby')
+  findNearby(
+    @Query('lat') lat: string,
+    @Query('lng') lng: string,
+    @Query('radius') radius?: string,
+  ) {
+    // Default radius 50km
+    const r = radius ? parseFloat(radius) : 50;
+    return this.listingsService.findNearby(parseFloat(lat), parseFloat(lng), r);
   }
 
   @Get('owner/:ownerId')

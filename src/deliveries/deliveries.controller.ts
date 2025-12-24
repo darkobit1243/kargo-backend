@@ -1,4 +1,13 @@
-import { Controller, Post, Param, Body, Get, Req, UseGuards, ForbiddenException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Param,
+  Body,
+  Get,
+  Req,
+  UseGuards,
+  ForbiddenException,
+} from '@nestjs/common';
 import { DeliveriesService } from './deliveries.service';
 import { ConfirmDeliveryDto } from './dto/confirm-delivery.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -20,7 +29,11 @@ export class DeliveriesController {
   @Post(':id/pickup')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('carrier')
-  pickup(@Param('id') id: string, @Req() req: Request, @Body() body: { qrToken?: string }) {
+  pickup(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: { qrToken?: string },
+  ) {
     const payload = req.user as { sub: string };
     return this.deliveriesService.pickup(id, payload.sub, body?.qrToken);
   }
@@ -34,7 +47,12 @@ export class DeliveriesController {
     @Body() body: { lat: number; lng: number },
   ) {
     const payload = req.user as { sub: string };
-    return this.deliveriesService.updateLocation(id, payload.sub, Number(body.lat), Number(body.lng));
+    return this.deliveriesService.updateLocation(
+      id,
+      payload.sub,
+      Number(body.lat),
+      Number(body.lng),
+    );
   }
 
   @Post(':id/deliver')
@@ -58,7 +76,10 @@ export class DeliveriesController {
   @Roles('sender', 'carrier')
   cancel(@Param('id') id: string, @Req() req: Request) {
     const payload = req.user as { sub: string; role: 'sender' | 'carrier' };
-    return this.deliveriesService.cancel(id, { id: payload.sub, role: payload.role });
+    return this.deliveriesService.cancel(id, {
+      id: payload.sub,
+      role: payload.role,
+    });
   }
 
   @Post(':id/dispute')
@@ -66,7 +87,10 @@ export class DeliveriesController {
   @Roles('sender', 'carrier')
   dispute(@Param('id') id: string, @Req() req: Request) {
     const payload = req.user as { sub: string; role: 'sender' | 'carrier' };
-    return this.deliveriesService.dispute(id, { id: payload.sub, role: payload.role });
+    return this.deliveriesService.dispute(id, {
+      id: payload.sub,
+      role: payload.role,
+    });
   }
 
   @Post(':id/send-delivery-code')
@@ -80,9 +104,17 @@ export class DeliveriesController {
   @Post(':id/confirm-delivery')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('carrier')
-  confirmDelivery(@Param('id') id: string, @Req() req: Request, @Body() body: ConfirmDeliveryDto) {
+  confirmDelivery(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: ConfirmDeliveryDto,
+  ) {
     const payload = req.user as { sub: string };
-    return this.deliveriesService.confirmDeliveryWithFirebaseToken(id, payload.sub, body.idToken);
+    return this.deliveriesService.confirmDeliveryWithFirebaseToken(
+      id,
+      payload.sub,
+      body.idToken,
+    );
   }
 
   @Get('by-listing/:listingId')

@@ -9,7 +9,10 @@ import { User } from '../auth/user.entity';
 import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [AuthModule, TypeOrmModule.forFeature([Rating, Delivery, Listing, User])],
+  imports: [
+    AuthModule,
+    TypeOrmModule.forFeature([Rating, Delivery, Listing, User]),
+  ],
   controllers: [RatingsController],
   providers: [RatingsService],
   exports: [RatingsService],

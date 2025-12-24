@@ -1,4 +1,11 @@
-import { IsBoolean, IsOptional, IsString, IsArray, ValidateNested, IsNumber } from 'class-validator';
+import {
+  IsBoolean,
+  IsOptional,
+  IsString,
+  IsArray,
+  ValidateNested,
+  IsNumber,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 class DeliverProofGpsDto {

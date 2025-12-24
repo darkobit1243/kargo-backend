@@ -27,7 +27,9 @@ export class RatingsService {
   ) {}
 
   async create(fromUserId: string, dto: CreateRatingDto): Promise<Rating> {
-    const delivery = await this.deliveriesRepo.findOne({ where: { id: dto.deliveryId } });
+    const delivery = await this.deliveriesRepo.findOne({
+      where: { id: dto.deliveryId },
+    });
     if (!delivery) {
       throw new NotFoundException('Delivery not found');
     }
@@ -40,7 +42,9 @@ export class RatingsService {
       throw new BadRequestException('Delivery has no carrier');
     }
 
-    const listing = await this.listingsRepo.findOne({ where: { id: delivery.listingId } });
+    const listing = await this.listingsRepo.findOne({
+      where: { id: delivery.listingId },
+    });
     if (!listing) {
       throw new NotFoundException('Listing not found for delivery');
     }

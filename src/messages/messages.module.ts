@@ -11,10 +11,14 @@ import { User } from '../auth/user.entity';
 import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Message, Offer, Listing, User]), WsModule, AuthModule, PushModule],
+  imports: [
+    TypeOrmModule.forFeature([Message, Offer, Listing, User]),
+    WsModule,
+    AuthModule,
+    PushModule,
+  ],
   controllers: [MessagesController],
   providers: [MessagesService],
   exports: [MessagesService],
 })
 export class MessagesModule {}
-

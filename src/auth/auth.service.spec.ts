@@ -48,7 +48,7 @@ describe('AuthService', () => {
     jest.clearAllMocks();
     (bcrypt.hash as unknown as jest.Mock).mockResolvedValue('hashed');
     (bcrypt.compare as unknown as jest.Mock).mockResolvedValue(true);
-    (jwtService.sign as jest.Mock).mockReturnValue('jwt-token');
+    jwtService.sign.mockReturnValue('jwt-token');
   });
 
   it('should be defined', () => {
@@ -107,9 +107,9 @@ describe('AuthService', () => {
 
   it('login throws when user not found', async () => {
     usersRepository.findOne.mockResolvedValue(null);
-    await expect(service.login({ email: 'a@b.com', password: 'pw' })).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      service.login({ email: 'a@b.com', password: 'pw' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('login throws when password invalid', async () => {
@@ -121,9 +121,9 @@ describe('AuthService', () => {
     });
     (bcrypt.compare as unknown as jest.Mock).mockResolvedValue(false);
 
-    await expect(service.login({ email: 'a@b.com', password: 'wrong' })).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      service.login({ email: 'a@b.com', password: 'wrong' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('login returns token + sanitized user when password valid', async () => {
@@ -139,6 +139,11 @@ describe('AuthService', () => {
     const res = await service.login({ email: 'a@b.com', password: 'pw' });
     expect(res.token).toBe('jwt-token');
     expect(res.role).toBe('carrier');
-    expect(res.user).toMatchObject({ id: 'u1', email: 'a@b.com', role: 'carrier', publicId: 3 });
+    expect(res.user).toMatchObject({
+      id: 'u1',
+      email: 'a@b.com',
+      role: 'carrier',
+      publicId: 3,
+    });
   });
 });

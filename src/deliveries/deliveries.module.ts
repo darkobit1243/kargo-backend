@@ -12,7 +12,13 @@ import { SmsModule } from '../sms/sms.module';
 import { PushModule } from '../push/push.module';
 
 @Module({
-  imports: [WsModule, TypeOrmModule.forFeature([Delivery, Listing, User, Offer]), AuthModule, SmsModule, PushModule],
+  imports: [
+    WsModule,
+    TypeOrmModule.forFeature([Delivery, Listing, User, Offer]),
+    AuthModule,
+    SmsModule,
+    PushModule,
+  ],
   controllers: [DeliveriesController],
   providers: [DeliveriesService],
 })
