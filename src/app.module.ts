@@ -22,11 +22,11 @@ import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
-    CommonModule,
-    AdminModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
+    CommonModule,
+    AdminModule,
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
