@@ -87,7 +87,7 @@ export class User {
 
   // Profil görselleri / istatistikler (opsiyonel)
   @Column({ type: 'text', nullable: true })
-  avatarUrl?: string;
+  avatarUrl?: string | null;
 
   @Column({ type: 'float', nullable: true })
   rating?: number;
