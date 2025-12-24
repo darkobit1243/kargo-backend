@@ -8,7 +8,8 @@ export class AwsDebugController {
   @Get('aws')
   getAws(): any {
     const env = process.env.NODE_ENV ?? 'development';
-    if (env === 'production') throw new ForbiddenException();
+    const allow = this.config.get<string>('DEBUG_ALLOW_AWS', 'false') === 'true';
+    if (env === 'production' && !allow) throw new ForbiddenException();
 
     const region = this.config.get<string>('AWS_REGION');
     const accessKey = this.config.get<string>('AWS_ACCESS_KEY_ID');
