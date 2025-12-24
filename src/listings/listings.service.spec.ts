@@ -4,6 +4,7 @@ import { ListingsService } from './listings.service';
 import { Listing } from './listing.entity';
 import { User } from '../auth/user.entity';
 import { Offer } from '../offers/offer.entity';
+import { S3Service } from '../common/s3.service';
 
 describe('ListingsService', () => {
   let service: ListingsService;
@@ -24,6 +25,11 @@ describe('ListingsService', () => {
     find: jest.fn(),
   };
 
+  const s3Service = {
+    toDisplayUrl: jest.fn(async (key: string) => key),
+    toDisplayUrls: jest.fn(async (keys: string[]) => keys),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -31,6 +37,7 @@ describe('ListingsService', () => {
         { provide: getRepositoryToken(Listing), useValue: listingsRepository },
         { provide: getRepositoryToken(User), useValue: usersRepository },
         { provide: getRepositoryToken(Offer), useValue: offersRepository },
+        { provide: S3Service, useValue: s3Service },
       ],
     }).compile();
 

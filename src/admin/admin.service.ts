@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { AdminAuditLog } from './admin-audit-log.entity';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, MoreThanOrEqual } from 'typeorm';
 import { User, UserRole } from '../auth/user.entity';
 import { Listing } from '../listings/listing.entity';
 import { Delivery } from '../deliveries/delivery.entity';
+import { S3Service } from '../common/s3.service';
 
 @Injectable()
 export class AdminService {
@@ -17,9 +18,23 @@ export class AdminService {
     private readonly deliveriesRepository: Repository<Delivery>,
     @InjectRepository(AdminAuditLog)
     private readonly auditLogRepository: Repository<AdminAuditLog>,
+    private readonly s3Service: S3Service,
   ) {}
 
+  private async withSignedAvatar<T extends { avatarUrl?: string | null }>(
+    user: T,
+  ): Promise<T> {
+    const current = user.avatarUrl;
+    if (!current) return user;
+    const signed = await this.s3Service.toDisplayUrl(current);
+    return {
+      ...user,
+      avatarUrl: signed,
+    };
+  }
+
   async getStats() {
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const totalUsers = await this.usersRepository.count();
     const totalCarriers = await this.usersRepository.count({
       where: { role: 'carrier' },
@@ -34,6 +49,16 @@ export class AdminService {
     const totalListings = await this.listingsRepository.count();
     const totalDeliveries = await this.deliveriesRepository.count();
 
+    const newUsersLast7Days = await this.usersRepository.count({
+      where: { createdAt: MoreThanOrEqual(since) },
+    });
+    const newListingsLast7Days = await this.listingsRepository.count({
+      where: { createdAt: MoreThanOrEqual(since) },
+    });
+    const newDeliveriesLast7Days = await this.deliveriesRepository.count({
+      where: { createdAt: MoreThanOrEqual(since) },
+    });
+
     return {
       users: {
         total: totalUsers,
@@ -43,6 +68,13 @@ export class AdminService {
       },
       listings: { total: totalListings },
       deliveries: { total: totalDeliveries },
+      trends: {
+        last7Days: {
+          users: newUsersLast7Days,
+          listings: newListingsLast7Days,
+          deliveries: newDeliveriesLast7Days,
+        },
+      },
     };
   }
 
@@ -86,8 +118,10 @@ export class AdminService {
 
     const [users, total] = await qb.getManyAndCount();
 
+    const data = await Promise.all(users.map((u) => this.withSignedAvatar(u)));
+
     return {
-      data: users,
+      data,
       meta: {
         total,
         page,
@@ -108,7 +142,7 @@ export class AdminService {
         details: { userId },
       });
     }
-    return saved;
+    return this.withSignedAvatar(saved);
   }
 
   async setUserActiveStatus(userId: string, isActive: boolean, adminId?: string): Promise<User> {
@@ -123,6 +157,6 @@ export class AdminService {
         details: { userId },
       });
     }
-    return saved;
+    return this.withSignedAvatar(saved);
   }
 }

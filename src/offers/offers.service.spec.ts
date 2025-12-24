@@ -8,6 +8,7 @@ import { Delivery } from '../deliveries/delivery.entity';
 import { Listing } from '../listings/listing.entity';
 import { Message } from '../messages/message.entity';
 import { User } from '../auth/user.entity';
+import { S3Service } from '../common/s3.service';
 
 describe('OffersService', () => {
   let service: OffersService;
@@ -20,6 +21,10 @@ describe('OffersService', () => {
 
   const pushService = {
     sendToToken: jest.fn(),
+  };
+
+  const s3Service = {
+    toDisplayUrl: jest.fn(async (key: string) => key),
   };
 
   const offersRepository = {
@@ -52,6 +57,7 @@ describe('OffersService', () => {
         OffersService,
         { provide: WsGateway, useValue: wsGateway },
         { provide: PushService, useValue: pushService },
+        { provide: S3Service, useValue: s3Service },
         { provide: getRepositoryToken(Offer), useValue: offersRepository },
         {
           provide: getRepositoryToken(Delivery),

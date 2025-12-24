@@ -24,8 +24,8 @@ export class ListingsService {
     const photoUrls: string[] = [];
     if (dto.photos && Array.isArray(dto.photos)) {
       for (const photo of dto.photos) {
-        const url = await this.s3Service.uploadBase64(photo, 'listings');
-        photoUrls.push(url);
+        const keyOrValue = await this.s3Service.uploadBase64(photo, 'listings');
+        photoUrls.push(keyOrValue);
       }
     }
 
@@ -35,7 +35,11 @@ export class ListingsService {
       ...finalDto,
       ownerId,
     });
-    return this.listingsRepository.save(listing);
+    const saved = await this.listingsRepository.save(listing);
+    return {
+      ...saved,
+      photos: await this.s3Service.toDisplayUrls(saved.photos),
+    };
   }
 
   async findNearby(
@@ -78,16 +82,29 @@ export class ListingsService {
       : [];
     const ownerMap = new Map(owners.map((o) => [o.id, o]));
 
-    return listings.map((l) => {
+    const signedOwnerAvatar = new Map<string, string | null>();
+    await Promise.all(
+      owners.map(async (o) => {
+        signedOwnerAvatar.set(
+          o.id,
+          o.avatarUrl ? await this.s3Service.toDisplayUrl(o.avatarUrl) : null,
+        );
+      }),
+    );
+
+    return Promise.all(
+      listings.map(async (l) => {
       const owner = ownerMap.get(l.ownerId);
       return {
         ...l,
+        photos: await this.s3Service.toDisplayUrls(l.photos),
         ownerName: owner?.fullName ?? owner?.email ?? 'Gönderici',
-        ownerAvatar: owner?.avatarUrl ?? null,
+          ownerAvatar: owner ? (signedOwnerAvatar.get(owner.id) ?? null) : null,
         ownerRating: owner?.rating ?? null,
         ownerDelivered: owner?.deliveredCount ?? null,
       };
-    });
+      }),
+    );
   }
 
   async findAll(): Promise<any[]> {
@@ -107,23 +124,47 @@ export class ListingsService {
       : [];
     const ownerMap = new Map(owners.map((o) => [o.id, o]));
 
-    return listings.map((l) => {
+    const signedOwnerAvatar = new Map<string, string | null>();
+    await Promise.all(
+      owners.map(async (o) => {
+        signedOwnerAvatar.set(
+          o.id,
+          o.avatarUrl ? await this.s3Service.toDisplayUrl(o.avatarUrl) : null,
+        );
+      }),
+    );
+
+    return Promise.all(
+      listings.map(async (l) => {
       const owner = ownerMap.get(l.ownerId);
       return {
         ...l,
+        photos: await this.s3Service.toDisplayUrls(l.photos),
         ownerName: owner?.fullName ?? owner?.email ?? 'Gönderici',
-        ownerAvatar: owner?.avatarUrl ?? null,
+          ownerAvatar: owner ? (signedOwnerAvatar.get(owner.id) ?? null) : null,
         ownerRating: owner?.rating ?? null,
         ownerDelivered: owner?.deliveredCount ?? null,
       };
-    });
+      }),
+    );
   }
 
   async findOne(id: string): Promise<Listing | null> {
-    return this.listingsRepository.findOne({ where: { id } });
+    const listing = await this.listingsRepository.findOne({ where: { id } });
+    if (!listing) return null;
+    return {
+      ...listing,
+      photos: await this.s3Service.toDisplayUrls(listing.photos),
+    };
   }
 
   async findByOwner(ownerId: string): Promise<Listing[]> {
-    return this.listingsRepository.find({ where: { ownerId } });
+    const listings = await this.listingsRepository.find({ where: { ownerId } });
+    return Promise.all(
+      listings.map(async (l) => ({
+        ...l,
+        photos: await this.s3Service.toDisplayUrls(l.photos),
+      })),
+    );
   }
 }

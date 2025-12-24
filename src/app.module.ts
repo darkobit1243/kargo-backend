@@ -21,6 +21,7 @@ import { CommonModule } from './common/common.module';
 import { Rating } from './ratings/rating.entity';
 import { AdminModule } from './admin/admin.module';
 import { AwsDebugController } from './debug/aws.controller';
+import { UploadsController } from './uploads/uploads.controller';
 
 @Module({
   imports: [
@@ -57,7 +58,7 @@ import { AwsDebugController } from './debug/aws.controller';
     RatingsModule,
     PushModule,
   ],
-  controllers: [AppController, AppInfoController, AwsDebugController],
+  controllers: [AppController, AppInfoController, AwsDebugController, UploadsController],
   providers: [AppService],
 })
 export class AppModule { }

@@ -12,12 +12,14 @@ import { Listing } from '../listings/listing.entity';
 import { Message } from '../messages/message.entity';
 import { User } from '../auth/user.entity';
 import { PushService } from '../push/push.service';
+import { S3Service } from '../common/s3.service';
 
 @Injectable()
 export class OffersService {
   constructor(
     private wsGateway: WsGateway,
     private readonly pushService: PushService,
+    private readonly s3Service: S3Service,
     @InjectRepository(Offer)
     private readonly offersRepository: Repository<Offer>,
     @InjectRepository(Delivery)
@@ -119,24 +121,73 @@ export class OffersService {
     }
   }
 
-  // Teklifleri listele
-  async findByListing(listingId: string): Promise<any[]> {
-    const offers = await this.offersRepository.find({ where: { listingId } });
+  private async enrichOffers(offers: Offer[]): Promise<any[]> {
     if (!offers.length) return [];
+
     const proposerIds = [...new Set(offers.map((o) => o.proposerId))];
-    const users = await this.usersRepository.findByIds(proposerIds);
+    const users = proposerIds.length
+      ? await this.usersRepository.find({ where: { id: In(proposerIds) } })
+      : [];
     const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const signedAvatar = new Map<string, string | null>();
+    await Promise.all(
+      users.map(async (u) => {
+        signedAvatar.set(
+          u.id,
+          u.avatarUrl ? await this.s3Service.toDisplayUrl(u.avatarUrl) : null,
+        );
+      }),
+    );
 
     return offers.map((o) => {
       const user = userMap.get(o.proposerId);
+      const avatarKey = user?.avatarUrl ?? null;
       return {
         ...o,
         proposerName: user?.fullName ?? user?.email ?? 'Taşıyıcı',
-        proposerAvatar: user?.avatarUrl ?? null,
+        proposerAvatar: signedAvatar.get(o.proposerId) ?? null,
+        proposerAvatarKey: avatarKey,
         proposerRating: user?.rating ?? null,
         proposerDelivered: user?.deliveredCount ?? null,
       };
     });
+  }
+
+  // Teklifleri listele
+  async findByListing(listingId: string): Promise<any[]> {
+    const offers = await this.offersRepository.find({
+      where: { listingId },
+      order: { createdAt: 'DESC' },
+    });
+    return this.enrichOffers(offers);
+  }
+
+  async findByListingPaged(
+    listingId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: any[]; meta: any }> {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(50, Math.max(1, limit));
+
+    const [offers, total] = await this.offersRepository.findAndCount({
+      where: { listingId },
+      order: { createdAt: 'DESC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    });
+
+    const data = await this.enrichOffers(offers);
+    return {
+      data,
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        lastPage: Math.max(1, Math.ceil(total / safeLimit)),
+      },
+    };
   }
 
   // Sadece listing sahibi (sender) için listing teklifler
@@ -148,6 +199,16 @@ export class OffersService {
     return this.findByListing(listingId);
   }
 
+  async findByListingForOwnerPaged(
+    listingId: string,
+    ownerId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: any[]; meta: any }> {
+    await this.assertListingOwnedBy(listingId, ownerId);
+    return this.findByListingPaged(listingId, page, limit);
+  }
+
   // Owner'a ait tüm listinglerdeki teklifler
   async findByOwner(ownerId: string): Promise<any[]> {
     const listings = await this.listingsRepository.find({ where: { ownerId } });
@@ -157,21 +218,43 @@ export class OffersService {
       where: { listingId: In(listingIds) },
       order: { createdAt: 'DESC' },
     });
-    if (!offers.length) return [];
-    const proposerIds = [...new Set(offers.map((o) => o.proposerId))];
-    const users = await this.usersRepository.findByIds(proposerIds);
-    const userMap = new Map(users.map((u) => [u.id, u]));
+    return this.enrichOffers(offers);
+  }
 
-    return offers.map((o) => {
-      const user = userMap.get(o.proposerId);
+  async findByOwnerPaged(
+    ownerId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{ data: any[]; meta: any }> {
+    const listings = await this.listingsRepository.find({ where: { ownerId } });
+    if (!listings.length) {
       return {
-        ...o,
-        proposerName: user?.fullName ?? user?.email ?? 'Taşıyıcı',
-        proposerAvatar: user?.avatarUrl ?? null,
-        proposerRating: user?.rating ?? null,
-        proposerDelivered: user?.deliveredCount ?? null,
+        data: [],
+        meta: { total: 0, page: Math.max(1, page), limit: Math.min(50, Math.max(1, limit)), lastPage: 1 },
       };
+    }
+    const listingIds = listings.map((l) => l.id);
+
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(50, Math.max(1, limit));
+
+    const [offers, total] = await this.offersRepository.findAndCount({
+      where: { listingId: In(listingIds) },
+      order: { createdAt: 'DESC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
     });
+
+    const data = await this.enrichOffers(offers);
+    return {
+      data,
+      meta: {
+        total,
+        page: safePage,
+        limit: safeLimit,
+        lastPage: Math.max(1, Math.ceil(total / safeLimit)),
+      },
+    };
   }
 
   // Teklifi reddet

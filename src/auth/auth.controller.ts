@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -24,6 +24,16 @@ export class AuthController {
   async me(@Req() req: Request): Promise<any> {
     const payload = req.user as { sub: string };
     return this.authService.findById(payload.sub);
+  }
+
+  @Patch('me')
+  @UseGuards(JwtAuthGuard)
+  async updateMe(
+    @Req() req: Request,
+    @Body() body: { avatarUrl?: string | null },
+  ): Promise<any> {
+    const payload = req.user as { sub: string };
+    return this.authService.updateMe(payload.sub, body);
   }
 
   // Push notification token (FCM)

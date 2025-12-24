@@ -5,6 +5,7 @@ import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { User } from './user.entity';
+import { S3Service } from '../common/s3.service';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -33,6 +34,10 @@ describe('AuthService', () => {
     get: jest.fn((_key: string, defaultValue?: any) => defaultValue),
   };
 
+  const s3Service = {
+    toDisplayUrl: jest.fn(async (key: string) => key),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,6 +45,7 @@ describe('AuthService', () => {
         { provide: getRepositoryToken(User), useValue: usersRepository },
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
+        { provide: S3Service, useValue: s3Service },
       ],
     }).compile();
 

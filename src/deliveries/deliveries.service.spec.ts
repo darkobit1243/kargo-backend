@@ -9,6 +9,7 @@ import { User } from '../auth/user.entity';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../push/push.service';
 import { ConfigService } from '@nestjs/config';
+import { S3Service } from '../common/s3.service';
 
 describe('DeliveriesService', () => {
   let service: DeliveriesService;
@@ -51,6 +52,11 @@ describe('DeliveriesService', () => {
     get: jest.fn(),
   };
 
+  const s3Service = {
+    toDisplayUrl: jest.fn(async (key: string) => key),
+    toDisplayUrls: jest.fn(async (keys: string[]) => keys),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -58,6 +64,7 @@ describe('DeliveriesService', () => {
         { provide: WsGateway, useValue: wsGateway },
         { provide: SmsService, useValue: smsService },
         { provide: PushService, useValue: pushService },
+        { provide: S3Service, useValue: s3Service },
         { provide: ConfigService, useValue: configService },
         {
           provide: getRepositoryToken(Delivery),

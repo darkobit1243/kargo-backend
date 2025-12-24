@@ -5,6 +5,7 @@ import {
   Param,
   Body,
   Req,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { OffersService } from './offers.service';
@@ -38,8 +39,20 @@ export class OffersController {
   findByListing(
     @Param('listingId') listingId: string,
     @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
   ): any {
     const payload = req.user as { sub: string };
+    if (page != null || limit != null) {
+      const pageNum = Math.max(1, Number(page ?? 1) || 1);
+      const limitNum = Math.min(50, Math.max(1, Number(limit ?? 20) || 20));
+      return this.offersService.findByListingForOwnerPaged(
+        listingId,
+        payload.sub,
+        pageNum,
+        limitNum,
+      );
+    }
     return this.offersService.findByListingForOwner(listingId, payload.sub);
   }
 
@@ -47,11 +60,23 @@ export class OffersController {
   @Get('owner/:ownerId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('sender')
-  findByOwner(@Param('ownerId') ownerId: string, @Req() req: Request): any {
+  findByOwner(
+    @Param('ownerId') ownerId: string,
+    @Req() req: Request,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ): any {
     const payload = req.user as { sub: string };
     if (payload.sub !== ownerId) {
       throw new ForbiddenException('Sadece kendi ilanlarınıza ait teklifleri görüntüleyebilirsiniz.');
     }
+
+    if (page != null || limit != null) {
+      const pageNum = Math.max(1, Number(page ?? 1) || 1);
+      const limitNum = Math.min(50, Math.max(1, Number(limit ?? 20) || 20));
+      return this.offersService.findByOwnerPaged(ownerId, pageNum, limitNum);
+    }
+
     return this.offersService.findByOwner(ownerId);
   }
 

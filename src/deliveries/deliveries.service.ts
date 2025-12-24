@@ -15,6 +15,7 @@ import { User } from '../auth/user.entity';
 import { SmsService } from '../sms/sms.service';
 import { PushService } from '../push/push.service';
 import * as admin from 'firebase-admin';
+import { S3Service } from '../common/s3.service';
 
 @Injectable()
 export class DeliveriesService {
@@ -24,6 +25,7 @@ export class DeliveriesService {
     private wsGateway: WsGateway,
     private readonly smsService: SmsService,
     private readonly pushService: PushService,
+    private readonly s3Service: S3Service,
     private readonly config: ConfigService,
     @InjectRepository(Delivery)
     private readonly deliveriesRepository: Repository<Delivery>,
@@ -552,6 +554,16 @@ export class DeliveriesService {
       : [];
     const listingMap = new Map(listings.map((l) => [l.id, l]));
 
+    const signedPhotosByListingId = new Map<string, string[]>();
+    await Promise.all(
+      listings.map(async (l) => {
+        signedPhotosByListingId.set(
+          l.id,
+          await this.s3Service.toDisplayUrls(l.photos),
+        );
+      }),
+    );
+
     return deliveries.map((d) => {
       const listing = listingMap.get(d.listingId);
       return {
@@ -561,7 +573,7 @@ export class DeliveriesService {
               id: listing.id,
               title: listing.title,
               description: listing.description,
-              photos: listing.photos,
+              photos: signedPhotosByListingId.get(listing.id) ?? listing.photos,
               weight: listing.weight,
               dimensions: listing.dimensions,
               fragile: listing.fragile,
@@ -603,6 +615,16 @@ export class DeliveriesService {
 
     const listingMap = new Map(listings.map((l) => [l.id, l]));
 
+    const signedPhotosByListingId = new Map<string, string[]>();
+    await Promise.all(
+      listings.map(async (l) => {
+        signedPhotosByListingId.set(
+          l.id,
+          await this.s3Service.toDisplayUrls(l.photos),
+        );
+      }),
+    );
+
     const carrierIds = [
       ...new Set(deliveries.map((d) => d.carrierId).filter(Boolean)),
     ] as string[];
@@ -610,6 +632,16 @@ export class DeliveriesService {
       ? await this.usersRepository.findByIds(carrierIds)
       : [];
     const carrierMap = new Map(carriers.map((c) => [c.id, c]));
+
+    const signedCarrierAvatar = new Map<string, string | null>();
+    await Promise.all(
+      carriers.map(async (c) => {
+        signedCarrierAvatar.set(
+          c.id,
+          c.avatarUrl ? await this.s3Service.toDisplayUrl(c.avatarUrl) : null,
+        );
+      }),
+    );
 
     const acceptedOffers = listingIds.length
       ? await this.offersRepository.find({
@@ -631,7 +663,7 @@ export class DeliveriesService {
               id: listing.id,
               title: listing.title,
               description: listing.description,
-              photos: listing.photos,
+              photos: signedPhotosByListingId.get(listing.id) ?? listing.photos,
               weight: listing.weight,
               dimensions: listing.dimensions,
               fragile: listing.fragile,
@@ -649,7 +681,7 @@ export class DeliveriesService {
               id: carrier.id,
               fullName: carrier.fullName ?? null,
               email: carrier.email ?? null,
-              avatarUrl: carrier.avatarUrl ?? null,
+              avatarUrl: signedCarrierAvatar.get(carrier.id) ?? null,
               rating: carrier.rating ?? null,
               deliveredCount: carrier.deliveredCount ?? null,
             }

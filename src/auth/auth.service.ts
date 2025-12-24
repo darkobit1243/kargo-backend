@@ -12,12 +12,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, type UserRole } from './user.entity';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { S3Service } from '../common/s3.service';
 
 export type AuthResponseUser = {
   id: string;
   publicId?: number;
   email: string;
   role: UserRole;
+  isVerified?: boolean;
+  isActive?: boolean;
   fullName?: string;
   phone?: string;
   address?: string;
@@ -32,6 +35,9 @@ export type AuthResponseUser = {
   vehicleType?: string;
   vehiclePlate?: string;
   serviceArea?: string;
+  rating?: number;
+  deliveredCount?: number;
+  avatarKey?: string;
   avatarUrl?: string;
 };
 
@@ -41,14 +47,17 @@ export class AuthService {
     @InjectRepository(User) private readonly usersRepository: Repository<User>,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
+    private readonly s3Service: S3Service,
   ) {}
 
-  private sanitize(user: User): AuthResponseUser {
+  private async sanitize(user: User): Promise<AuthResponseUser> {
     const {
       id,
       publicId,
       email,
       role,
+      isVerified,
+      isActive,
       fullName,
       phone,
       address,
@@ -63,6 +72,8 @@ export class AuthService {
       vehicleType,
       vehiclePlate,
       serviceArea,
+      rating,
+      deliveredCount,
       avatarUrl,
     } = user;
     const resolvedRole: UserRole = role ?? 'sender';
@@ -71,6 +82,8 @@ export class AuthService {
       publicId,
       email,
       role: resolvedRole,
+      isVerified,
+      isActive,
       fullName,
       phone,
       address,
@@ -85,7 +98,10 @@ export class AuthService {
       vehicleType,
       vehiclePlate,
       serviceArea,
-      avatarUrl,
+      rating,
+      deliveredCount,
+      avatarKey: avatarUrl ?? undefined,
+      avatarUrl: avatarUrl ? await this.s3Service.toDisplayUrl(avatarUrl) : undefined,
     };
   }
 
@@ -200,8 +216,26 @@ export class AuthService {
       token: this.signToken(saved),
       refreshToken,
       role: saved.role,
-      user: this.sanitize(saved),
+      user: await this.sanitize(saved),
     };
+  }
+
+  async updateMe(
+    userId: string,
+    update: { avatarUrl?: string | null },
+  ): Promise<AuthResponseUser> {
+    const user = await this.usersRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(update, 'avatarUrl')) {
+      const next = update.avatarUrl;
+      user.avatarUrl = next && next.trim().length ? next.trim() : null;
+    }
+
+    const saved = await this.usersRepository.save(user);
+    return this.sanitize(saved);
   }
 
   async login(user: {
@@ -232,7 +266,7 @@ export class AuthService {
       token: this.signToken(found),
       refreshToken,
       role: found.role,
-      user: this.sanitize(found),
+      user: await this.sanitize(found),
     };
   }
 
