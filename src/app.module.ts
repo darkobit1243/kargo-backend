@@ -20,11 +20,13 @@ import { PushModule } from './push/push.module';
 import { CommonModule } from './common/common.module';
 import { Rating } from './ratings/rating.entity';
 import { AdminModule } from './admin/admin.module';
+import { AwsDebugController } from './debug/aws.controller';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
+      envFilePath: '.env',
     }),
     CommonModule,
     AdminModule,
@@ -55,7 +57,7 @@ import { AdminModule } from './admin/admin.module';
     RatingsModule,
     PushModule,
   ],
-  controllers: [AppController, AppInfoController],
+  controllers: [AppController, AppInfoController, AwsDebugController],
   providers: [AppService],
 })
 export class AppModule { }

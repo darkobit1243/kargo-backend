@@ -17,7 +17,12 @@ export class S3Service {
     );
     this.bucketName = this.configService.get<string>('AWS_S3_BUCKET_NAME', '');
 
-    if (region && accessKeyId && secretAccessKey && this.bucketName) {
+    const hasRegion = Boolean(region && region.trim().length > 0);
+    const hasAccessKey = Boolean(accessKeyId && accessKeyId.trim().length > 0);
+    const hasSecret = Boolean(secretAccessKey && secretAccessKey.trim().length > 0);
+    const hasBucket = Boolean(this.bucketName && this.bucketName.trim().length > 0);
+
+    if (hasRegion && hasAccessKey && hasSecret && hasBucket) {
       this.s3Client = new S3Client({
         region,
         credentials: {
@@ -27,8 +32,15 @@ export class S3Service {
       });
       this.logger.log(`S3 Service initialized for bucket: ${this.bucketName}`);
     } else {
+      // Log which parts are missing (mask secrets)
+      const parts = [
+        `region=${hasRegion}`,
+        `accessKey=${hasAccessKey}`,
+        `secret=${hasSecret}`,
+        `bucket=${hasBucket}`,
+      ].join(', ');
       this.logger.warn(
-        'AWS Credentials (REGION, ACCESS_KEY, SECRET, BUCKET) not found. S3 upload will be skipped.',
+        `AWS Credentials incomplete (${parts}). S3 upload will be skipped.`,
       );
     }
   }
