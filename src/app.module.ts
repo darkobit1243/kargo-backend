@@ -29,13 +29,28 @@ import { AdminModule } from './admin/admin.module';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      useFactory: async (config: ConfigService) => {
+        const { Client } = require('pg');
         // Railway içi için fallback URL (env yoksa buraya düşer)
         const fallbackUrl =
           'postgresql://postgres:EuBICrJOGohRVSbakjwPHPNEFpzhcth1@postgres.railway.internal:5432/railway';
 
         const url = config.get<string>('DATABASE_URL') ?? fallbackUrl;
         const sslEnabled = config.get<string>('DB_SSL', 'false') === 'true';
+
+        // PostGIS'i TypeORM başlamadan önce zorla aktifleştir
+        try {
+          const client = new Client({
+            connectionString: url,
+            ssl: sslEnabled ? { rejectUnauthorized: false } : false,
+          });
+          await client.connect();
+          await client.query('CREATE EXTENSION IF NOT EXISTS postgis;');
+          await client.end();
+          console.log('✅ PostGIS extension checked/enabled before TypeORM init');
+        } catch (e) {
+          console.error('❌ Failed to pre-enable PostGIS:', e.message);
+        }
 
         return {
           type: 'postgres',
@@ -58,4 +73,4 @@ import { AdminModule } from './admin/admin.module';
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

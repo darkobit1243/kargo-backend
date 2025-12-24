@@ -1,10 +1,8 @@
 import { Module, Global } from '@nestjs/common';
 import { S3Service } from './s3.service';
-import { PostgisInitService } from './postgis-init.service';
-
 @Global()
 @Module({
-  providers: [S3Service, PostgisInitService],
+  providers: [S3Service],
   exports: [S3Service],
 })
-export class CommonModule {}
+export class CommonModule { }
