@@ -222,7 +222,11 @@ export class AuthService {
     body: ForgotPasswordDto,
   ): Promise<{ ok: true; debugCode?: string; phoneE164?: string; phoneNational?: string }> {
     const email = (body?.email ?? '').trim();
-    const user = await this.findUserByEmail(email);
+    const phoneInput = (body?.phone ?? '').trim();
+
+    const user = phoneInput
+      ? await this.findUserByPhone(phoneInput)
+      : await this.findUserByEmail(email);
 
     // Avoid user enumeration: always return ok.
     if (!user) {
@@ -238,9 +242,14 @@ export class AuthService {
     // After OTP verification, client calls /auth/reset-password-phone with idToken + newPassword.
     if (channel === 'firebase') {
       const phoneFromDb = (user?.phone ?? '').trim();
-      const phoneFromFirebase = phoneFromDb ? null : await this.getFirebasePhoneByEmail(email);
+      const phoneFromFirebase =
+        !phoneInput && !phoneFromDb ? await this.getFirebasePhoneByEmail(email) : null;
 
-      const phoneRaw = phoneFromDb || phoneFromFirebase || '';
+      // Priority:
+      // 1) DB phone (authoritative for our app)
+      // 2) phone provided by requester (when initiating by phone)
+      // 3) Firebase phone (fallback when initiating by email)
+      const phoneRaw = phoneFromDb || phoneInput || phoneFromFirebase || '';
       const normalized = phoneRaw ? this.normalizeTrPhones(phoneRaw) : null;
       if (!normalized) {
         console.error('[AUTH] Cannot start Firebase OTP reset: user.phone is empty/invalid');
@@ -291,7 +300,7 @@ export class AuthService {
         console.error('[AUTH] Failed to send reset email', e);
       }
     } else {
-      const phone = (user.phone ?? '').trim();
+      const phone = ((user.phone ?? '') || phoneInput).trim();
       if (!phone) {
         console.error('[AUTH] Cannot send reset SMS: user.phone is empty');
       } else {
@@ -306,7 +315,9 @@ export class AuthService {
     }
 
     if (this.config.get<string>('AUTH_LOG_RESET_CODE', 'false') === 'true') {
-      console.log(`[AUTH] RESET_CODE: email=${user.email} code=${code} expiresAt=${expiresAt.toISOString()}`);
+      console.log(
+        `[AUTH] RESET_CODE: user=${user.id} email=${user.email} phone=${user.phone ?? ''} code=${code} expiresAt=${expiresAt.toISOString()}`,
+      );
     }
 
     const debugReturn =
