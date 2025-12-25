@@ -14,8 +14,11 @@ import { User, type UserRole } from './user.entity';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordPhoneDto } from './dto/reset-password-phone.dto';
 import { S3Service } from '../common/s3.service';
 import { MailService } from '../common/mail.service';
+import { SmsService } from '../sms/sms.service';
+import * as admin from 'firebase-admin';
 
 export type AuthResponseUser = {
   id: string;
@@ -52,6 +55,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly s3Service: S3Service,
     private readonly mail: MailService,
+    private readonly sms: SmsService,
   ) {}
 
   private async sanitize(user: User): Promise<AuthResponseUser> {
@@ -155,6 +159,22 @@ export class AuthService {
       .getOne();
   }
 
+  private async findUserByPhone(phoneE164: string): Promise<User | null> {
+    const raw = (phoneE164 ?? '').trim();
+    if (!raw) return null;
+    const digits = raw.replace(/\D/g, '');
+    if (!digits) return null;
+
+    // Compare by digits-only to avoid formatting mismatches (+90..., spaces, dashes).
+    return this.usersRepository
+      .createQueryBuilder('u')
+      .where('u.phone IS NOT NULL')
+      .andWhere(`regexp_replace(u.phone, '\\D', '', 'g') = :digits`, {
+        digits,
+      })
+      .getOne();
+  }
+
   async requestPasswordReset(
     body: ForgotPasswordDto,
   ): Promise<{ ok: true; debugCode?: string }> {
@@ -184,16 +204,35 @@ export class AuthService {
       <p>Bu kod 5 dakika geçerlidir.</p>
     `;
 
-    try {
-      await this.mail.sendMail({
-        to: user.email,
-        subject,
-        text,
-        html,
-      });
-    } catch (e) {
-      // Do not fail the request; avoid leaking system state.
-      console.error('[AUTH] Failed to send reset email', e);
+    const channel = (this.config.get<string>('AUTH_RESET_CHANNEL', 'sms') ?? 'sms')
+      .trim()
+      .toLowerCase();
+
+    if (channel === 'email') {
+      try {
+        await this.mail.sendMail({
+          to: user.email,
+          subject,
+          text,
+          html,
+        });
+      } catch (e) {
+        // Do not fail the request; avoid leaking system state.
+        console.error('[AUTH] Failed to send reset email', e);
+      }
+    } else {
+      const phone = (user.phone ?? '').trim();
+      if (!phone) {
+        console.error('[AUTH] Cannot send reset SMS: user.phone is empty');
+      } else {
+        const smsText = `Şifre sıfırlama kodun: ${code}. 5 dk geçerli.`;
+        try {
+          await this.sms.sendSms(phone, smsText);
+        } catch (e) {
+          // Do not fail the request; avoid leaking system state.
+          console.error('[AUTH] Failed to send reset SMS', e);
+        }
+      }
     }
 
     if (this.config.get<string>('AUTH_LOG_RESET_CODE', 'false') === 'true') {
@@ -239,6 +278,42 @@ export class AuthService {
     // Invalidate refresh token (force re-login)
     user.refreshToken = randomBytes(64).toString('hex');
 
+    await this.usersRepository.save(user);
+  }
+
+  // Firebase Phone OTP doğrulaması sonrası (client tarafı), ID token'ı doğrular ve DB şifresini günceller.
+  async resetPasswordWithPhone(body: ResetPasswordPhoneDto): Promise<void> {
+    const idToken = (body?.idToken ?? '').trim();
+    const newPassword = (body?.newPassword ?? '').trim();
+    if (!idToken) {
+      throw new UnauthorizedException('Missing token');
+    }
+
+    if (!newPassword) {
+      throw new UnauthorizedException('Missing password');
+    }
+
+    if (admin.apps.length === 0) {
+      // Firebase Admin credentials are missing; cannot verify token.
+      throw new UnauthorizedException('Firebase admin not initialized');
+    }
+
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    const phoneNumber = (decoded as any)?.phone_number as string | undefined;
+    if (!phoneNumber) {
+      throw new UnauthorizedException('Token has no phone_number');
+    }
+
+    const user = await this.findUserByPhone(phoneNumber);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.refreshToken = randomBytes(64).toString('hex');
+    user.passwordResetUsedAt = new Date();
+    user.passwordResetCodeHash = null;
+    user.passwordResetExpiresAt = null;
     await this.usersRepository.save(user);
   }
 

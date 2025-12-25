@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResetPasswordPhoneDto } from './dto/reset-password-phone.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -30,6 +31,15 @@ export class AuthController {
   @Post('reset-password')
   async resetPassword(@Body() body: ResetPasswordDto): Promise<{ ok: true }> {
     await this.authService.resetPassword(body);
+    return { ok: true };
+  }
+
+  // Firebase Auth (phone) OTP doğrulaması sonrası şifreyi backend DB'de değiştir.
+  @Post('reset-password-phone')
+  async resetPasswordPhone(
+    @Body() body: ResetPasswordPhoneDto,
+  ): Promise<{ ok: true }> {
+    await this.authService.resetPasswordWithPhone(body);
     return { ok: true };
   }
 
