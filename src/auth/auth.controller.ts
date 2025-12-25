@@ -24,7 +24,7 @@ export class AuthController {
   @Post('forgot-password')
   async forgotPassword(
     @Body() body: ForgotPasswordDto,
-  ): Promise<{ ok: true; debugCode?: string }> {
+  ): Promise<{ ok: true; debugCode?: string; phoneE164?: string; phoneNational?: string }> {
     return this.authService.requestPasswordReset(body);
   }
 

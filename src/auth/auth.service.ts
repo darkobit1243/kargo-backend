@@ -159,25 +159,56 @@ export class AuthService {
       .getOne();
   }
 
+  private normalizeTrPhones(input: string): { e164: string; national: string; last10: string } | null {
+    const digits = (input ?? '').replace(/\D/g, '');
+    if (!digits) return null;
+
+    let tenDigits: string | null = null;
+    if (digits.length === 10) {
+      tenDigits = digits;
+    } else if (digits.length === 11 && digits.startsWith('0')) {
+      tenDigits = digits.slice(1);
+    } else if (digits.length === 12 && digits.startsWith('90')) {
+      tenDigits = digits.slice(2);
+    } else if (digits.length > 12) {
+      // Fallback: use last 10 digits for messy stored formats.
+      tenDigits = digits.slice(-10);
+    }
+
+    if (!tenDigits || tenDigits.length !== 10) return null;
+    if (!/^5\d{9}$/.test(tenDigits)) return null;
+
+    return {
+      e164: `+90${tenDigits}`,
+      national: `0${tenDigits}`,
+      last10: tenDigits,
+    };
+  }
+
   private async findUserByPhone(phoneE164: string): Promise<User | null> {
     const raw = (phoneE164 ?? '').trim();
     if (!raw) return null;
     const digits = raw.replace(/\D/g, '');
     if (!digits) return null;
 
-    // Compare by digits-only to avoid formatting mismatches (+90..., spaces, dashes).
+    // Match by the last 10 digits to ignore formatting differences:
+    // 0544xxxxxxx, 544xxxxxxx, +90544xxxxxxx, 90544xxxxxxx
+    const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+    if (last10.length !== 10) return null;
+
+    // Compare by last 10 digits to avoid formatting mismatches (+90..., leading 0, spaces, dashes).
     return this.usersRepository
       .createQueryBuilder('u')
       .where('u.phone IS NOT NULL')
-      .andWhere(`regexp_replace(u.phone, '\\D', '', 'g') = :digits`, {
-        digits,
+      .andWhere(`right(regexp_replace(u.phone, '\\D', '', 'g'), 10) = :last10`, {
+        last10,
       })
       .getOne();
   }
 
   async requestPasswordReset(
     body: ForgotPasswordDto,
-  ): Promise<{ ok: true; debugCode?: string }> {
+  ): Promise<{ ok: true; debugCode?: string; phoneE164?: string; phoneNational?: string }> {
     const email = (body?.email ?? '').trim();
     const user = await this.findUserByEmail(email);
 
@@ -186,6 +217,24 @@ export class AuthService {
       return { ok: true };
     }
 
+    const channel = (this.config.get<string>('AUTH_RESET_CHANNEL', 'sms') ?? 'sms')
+      .trim()
+      .toLowerCase();
+
+    // Channel: firebase (phone OTP)
+    // Client will call Firebase Auth verifyPhoneNumber using the returned phoneE164.
+    // After OTP verification, client calls /auth/reset-password-phone with idToken + newPassword.
+    if (channel === 'firebase') {
+      const phoneRaw = (user.phone ?? '').trim();
+      const normalized = phoneRaw ? this.normalizeTrPhones(phoneRaw) : null;
+      if (!normalized) {
+        console.error('[AUTH] Cannot start Firebase OTP reset: user.phone is empty/invalid');
+        return { ok: true };
+      }
+      return { ok: true, phoneE164: normalized.e164, phoneNational: normalized.national };
+    }
+
+    // Channels: sms/email (6-digit code)
     const code = randomInt(0, 1000000).toString().padStart(6, '0');
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -203,10 +252,6 @@ export class AuthService {
       <h1>${code}</h1>
       <p>Bu kod 5 dakika geçerlidir.</p>
     `;
-
-    const channel = (this.config.get<string>('AUTH_RESET_CHANNEL', 'sms') ?? 'sms')
-      .trim()
-      .toLowerCase();
 
     if (channel === 'email') {
       try {
