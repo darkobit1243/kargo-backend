@@ -159,6 +159,18 @@ export class AuthService {
       .getOne();
   }
 
+  private async getFirebasePhoneByEmail(email: string): Promise<string | null> {
+    const normalized = (email ?? '').trim().toLowerCase();
+    if (!normalized) return null;
+    if (admin.apps.length === 0) return null;
+    try {
+      const fbUser = await admin.auth().getUserByEmail(normalized);
+      return (fbUser.phoneNumber ?? '').trim() || null;
+    } catch {
+      return null;
+    }
+  }
+
   private normalizeTrPhones(input: string): { e164: string; national: string; last10: string } | null {
     const digits = (input ?? '').replace(/\D/g, '');
     if (!digits) return null;
@@ -225,11 +237,24 @@ export class AuthService {
     // Client will call Firebase Auth verifyPhoneNumber using the returned phoneE164.
     // After OTP verification, client calls /auth/reset-password-phone with idToken + newPassword.
     if (channel === 'firebase') {
-      const phoneRaw = (user.phone ?? '').trim();
+      const phoneFromDb = (user?.phone ?? '').trim();
+      const phoneFromFirebase = phoneFromDb ? null : await this.getFirebasePhoneByEmail(email);
+
+      const phoneRaw = phoneFromDb || phoneFromFirebase || '';
       const normalized = phoneRaw ? this.normalizeTrPhones(phoneRaw) : null;
       if (!normalized) {
         console.error('[AUTH] Cannot start Firebase OTP reset: user.phone is empty/invalid');
         return { ok: true };
+      }
+
+      // Best-effort: sync DB phone from Firebase (only when missing).
+      if (user && (!user.phone || !user.phone.trim().length) && phoneFromFirebase) {
+        try {
+          user.phone = normalized.e164;
+          await this.usersRepository.save(user);
+        } catch {
+          // Ignore sync failures.
+        }
       }
       return { ok: true, phoneE164: normalized.e164, phoneNational: normalized.national };
     }
