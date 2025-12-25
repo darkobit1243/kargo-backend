@@ -220,9 +220,18 @@ export class AuthService {
 
   async requestPasswordReset(
     body: ForgotPasswordDto,
-  ): Promise<{ ok: true; debugCode?: string; phoneE164?: string; phoneNational?: string }> {
+  ): Promise<{
+    ok: true;
+    debugCode?: string;
+    phoneE164?: string;
+    phoneNational?: string;
+    debugReason?: string;
+  }> {
     const email = (body?.email ?? '').trim();
     const phoneInput = (body?.phone ?? '').trim();
+
+    const debugEnabled =
+      this.config.get<string>('AUTH_FORGOT_PASSWORD_DEBUG', 'false') === 'true';
 
     const user = phoneInput
       ? await this.findUserByPhone(phoneInput)
@@ -230,7 +239,14 @@ export class AuthService {
 
     // Avoid user enumeration: always return ok.
     if (!user) {
-      return { ok: true };
+      return debugEnabled
+        ? {
+            ok: true,
+            debugReason: phoneInput
+              ? 'user_not_found_by_phone'
+              : 'user_not_found_by_email',
+          }
+        : { ok: true };
     }
 
     const channel = (this.config.get<string>('AUTH_RESET_CHANNEL', 'sms') ?? 'sms')
@@ -253,7 +269,9 @@ export class AuthService {
       const normalized = phoneRaw ? this.normalizeTrPhones(phoneRaw) : null;
       if (!normalized) {
         console.error('[AUTH] Cannot start Firebase OTP reset: user.phone is empty/invalid');
-        return { ok: true };
+        return debugEnabled
+          ? { ok: true, debugReason: 'phone_missing_or_invalid' }
+          : { ok: true };
       }
 
       // Best-effort: sync DB phone from Firebase (only when missing).
