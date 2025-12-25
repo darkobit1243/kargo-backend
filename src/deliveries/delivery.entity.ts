@@ -2,6 +2,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -15,6 +16,9 @@ export type DeliveryStatus =
   | 'disputed';
 
 @Entity({ name: 'deliveries' })
+@Index(['status', 'createdAt'])
+@Index(['listingId'])
+@Index(['carrierId'])
 export class Delivery {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -39,6 +43,17 @@ export class Delivery {
 
   @Column({ type: 'timestamptz', nullable: true })
   deliveredAt?: Date;
+
+  // Delivery proof photos (S3 keys). Client receives signed display URLs.
+  @Column({ type: 'text', array: true, default: () => 'ARRAY[]::text[]' })
+  proofPhotos: string[];
+
+  // Optional issue/dispute reason when status becomes 'disputed'.
+  @Column({ type: 'text', nullable: true })
+  disputeReason?: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  disputedAt?: Date;
 
   // Delivery confirmation code (OTP). For now, sending auto-approves delivery.
   @Column({ nullable: true })

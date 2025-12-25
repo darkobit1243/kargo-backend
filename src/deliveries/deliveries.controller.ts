@@ -85,12 +85,28 @@ export class DeliveriesController {
   @Post(':id/dispute')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('sender', 'carrier')
-  dispute(@Param('id') id: string, @Req() req: Request) {
+  dispute(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: { reason?: string | null },
+  ) {
     const payload = req.user as { sub: string; role: 'sender' | 'carrier' };
     return this.deliveriesService.dispute(id, {
       id: payload.sub,
       role: payload.role,
-    });
+    }, body?.reason ?? null);
+  }
+
+  @Post(':id/proof')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('carrier')
+  addProofPhoto(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Body() body: { photoKey: string },
+  ) {
+    const payload = req.user as { sub: string };
+    return this.deliveriesService.addProofPhoto(id, payload.sub, body?.photoKey);
   }
 
   @Post(':id/send-delivery-code')

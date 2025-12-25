@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 
@@ -16,7 +16,9 @@ export class AdminRateLimitGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<Request>();
     const user = req.user as any;
     if (!user || user.role !== 'admin') return true;
-    const key = user.id;
+
+    const key = user.sub || user.id;
+    if (!key) return true;
     const now = Date.now();
     const entry = adminRateLimitMap.get(key) || { count: 0, last: now };
     if (now - entry.last > WINDOW_MS) {
@@ -27,7 +29,7 @@ export class AdminRateLimitGuard implements CanActivate {
     adminRateLimitMap.set(key, entry);
     if (entry.count > RATE_LIMIT) {
       this.logger.warn(`Admin rate limit exceeded: ${user.email}`);
-      return false;
+      throw new HttpException('Admin rate limit exceeded', HttpStatus.TOO_MANY_REQUESTS);
     }
     return true;
   }

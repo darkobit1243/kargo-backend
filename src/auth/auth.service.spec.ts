@@ -6,6 +6,7 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { User } from './user.entity';
 import { S3Service } from '../common/s3.service';
+import { MailService } from '../common/mail.service';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -38,6 +39,10 @@ describe('AuthService', () => {
     toDisplayUrl: jest.fn(async (key: string) => key),
   };
 
+  const mailService = {
+    sendMail: jest.fn(async () => undefined),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -46,6 +51,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: jwtService },
         { provide: ConfigService, useValue: configService },
         { provide: S3Service, useValue: s3Service },
+        { provide: MailService, useValue: mailService },
       ],
     }).compile();
 

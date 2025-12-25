@@ -54,6 +54,8 @@ export class ListingsService {
 
     const qb = this.listingsRepository.createQueryBuilder('listing');
 
+    qb.andWhere('listing.isActive = true');
+
     if (acceptedListingIds.length > 0) {
       qb.where('listing.id NOT IN (:...ids)', { ids: acceptedListingIds });
     }
@@ -115,7 +117,7 @@ export class ListingsService {
       accepted.map((o) => o.listingId).filter(Boolean),
     );
 
-    const listings = (await this.listingsRepository.find()).filter(
+    const listings = (await this.listingsRepository.find({ where: { isActive: true } })).filter(
       (l) => !acceptedListingIds.has(l.id),
     );
     const ownerIds = [...new Set(listings.map((l) => l.ownerId))];
@@ -150,7 +152,7 @@ export class ListingsService {
   }
 
   async findOne(id: string): Promise<Listing | null> {
-    const listing = await this.listingsRepository.findOne({ where: { id } });
+    const listing = await this.listingsRepository.findOne({ where: { id, isActive: true } });
     if (!listing) return null;
     return {
       ...listing,

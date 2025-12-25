@@ -1,6 +1,7 @@
 import {
   Column,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
@@ -9,6 +10,10 @@ import {
 export type UserRole = 'sender' | 'carrier' | 'admin';
 
 @Entity({ name: 'users' })
+@Index(['role'])
+@Index(['role', 'isVerified'])
+@Index(['isActive'])
+@Index(['createdAt'])
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -39,51 +44,61 @@ export class User {
   @Column()
   password: string;
 
+  // Password reset (6-digit code, stored hashed)
+  @Column({ type: 'text', nullable: true })
+  passwordResetCodeHash?: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  passwordResetExpiresAt?: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  passwordResetUsedAt?: Date | null;
+
   @Column({ type: 'varchar', default: 'sender' })
   role: UserRole;
 
   @Column({ nullable: true })
-  fullName?: string;
+  fullName?: string | null;
 
   @Column({ nullable: true })
-  phone?: string;
+  phone?: string | null;
 
   @Column({ nullable: true })
-  address?: string;
+  address?: string | null;
 
   // Sender company info (required for sender onboarding)
   @Column({ nullable: true })
-  companyName?: string;
+  companyName?: string | null;
 
   @Column({ nullable: true })
-  taxNumber?: string;
+  taxNumber?: string | null;
 
   @Column({ nullable: true })
-  taxOffice?: string;
+  taxOffice?: string | null;
 
   @Column({ nullable: true })
-  cityId?: string;
+  cityId?: string | null;
 
   @Column({ nullable: true })
-  districtId?: string;
+  districtId?: string | null;
 
   @Column({ nullable: true })
-  city?: string;
+  city?: string | null;
 
   @Column({ nullable: true })
-  district?: string;
+  district?: string | null;
 
   @Column({ nullable: true })
-  activityArea?: string;
+  activityArea?: string | null;
 
   @Column({ nullable: true })
-  vehicleType?: string;
+  vehicleType?: string | null;
 
   @Column({ nullable: true })
-  vehiclePlate?: string;
+  vehiclePlate?: string | null;
 
   @Column({ nullable: true })
-  serviceArea?: string;
+  serviceArea?: string | null;
 
   // Profil görselleri / istatistikler (opsiyonel)
   @Column({ type: 'text', nullable: true })

@@ -6,13 +6,16 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User, type UserRole } from './user.entity';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { S3Service } from '../common/s3.service';
+import { MailService } from '../common/mail.service';
 
 export type AuthResponseUser = {
   id: string;
@@ -48,6 +51,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly s3Service: S3Service,
+    private readonly mail: MailService,
   ) {}
 
   private async sanitize(user: User): Promise<AuthResponseUser> {
@@ -84,20 +88,20 @@ export class AuthService {
       role: resolvedRole,
       isVerified,
       isActive,
-      fullName,
-      phone,
-      address,
-      companyName,
-      taxNumber,
-      taxOffice,
-      cityId,
-      districtId,
-      city,
-      district,
-      activityArea,
-      vehicleType,
-      vehiclePlate,
-      serviceArea,
+      fullName: fullName ?? undefined,
+      phone: phone ?? undefined,
+      address: address ?? undefined,
+      companyName: companyName ?? undefined,
+      taxNumber: taxNumber ?? undefined,
+      taxOffice: taxOffice ?? undefined,
+      cityId: cityId ?? undefined,
+      districtId: districtId ?? undefined,
+      city: city ?? undefined,
+      district: district ?? undefined,
+      activityArea: activityArea ?? undefined,
+      vehicleType: vehicleType ?? undefined,
+      vehiclePlate: vehiclePlate ?? undefined,
+      serviceArea: serviceArea ?? undefined,
       rating,
       deliveredCount,
       avatarKey: avatarUrl ?? undefined,
@@ -140,6 +144,102 @@ export class AuthService {
       email: user.email,
       role: resolvedRole,
     });
+  }
+
+  private findUserByEmail(email: string): Promise<User | null> {
+    const normalized = (email ?? '').trim().toLowerCase();
+    if (!normalized) return Promise.resolve(null);
+    return this.usersRepository
+      .createQueryBuilder('u')
+      .where('LOWER(u.email) = :email', { email: normalized })
+      .getOne();
+  }
+
+  async requestPasswordReset(
+    body: ForgotPasswordDto,
+  ): Promise<{ ok: true; debugCode?: string }> {
+    const email = (body?.email ?? '').trim();
+    const user = await this.findUserByEmail(email);
+
+    // Avoid user enumeration: always return ok.
+    if (!user) {
+      return { ok: true };
+    }
+
+    const code = randomInt(0, 1000000).toString().padStart(6, '0');
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    user.passwordResetCodeHash = codeHash;
+    user.passwordResetExpiresAt = expiresAt;
+    user.passwordResetUsedAt = null;
+    await this.usersRepository.save(user);
+
+    const subject = 'Şifre Sıfırlama Kodu';
+    const text = `Şifre sıfırlama kodunuz: ${code}\n\nBu kod 5 dakika geçerlidir.`;
+    const html = `
+      <h2>Şifre Sıfırlama</h2>
+      <p>Kodun:</p>
+      <h1>${code}</h1>
+      <p>Bu kod 5 dakika geçerlidir.</p>
+    `;
+
+    try {
+      await this.mail.sendMail({
+        to: user.email,
+        subject,
+        text,
+        html,
+      });
+    } catch (e) {
+      // Do not fail the request; avoid leaking system state.
+      console.error('[AUTH] Failed to send reset email', e);
+    }
+
+    if (this.config.get<string>('AUTH_LOG_RESET_CODE', 'false') === 'true') {
+      console.log(`[AUTH] RESET_CODE: email=${user.email} code=${code} expiresAt=${expiresAt.toISOString()}`);
+    }
+
+    const debugReturn =
+      this.config.get<string>('AUTH_RESET_DEBUG_RETURN_CODE', 'false') === 'true';
+    return debugReturn ? { ok: true, debugCode: code } : { ok: true };
+  }
+
+  async resetPassword(body: ResetPasswordDto): Promise<void> {
+    const email = (body?.email ?? '').trim();
+    const code = (body?.code ?? '').trim();
+    const newPassword = (body?.newPassword ?? '').trim();
+
+    const user = await this.findUserByEmail(email);
+    if (!user) {
+      throw new UnauthorizedException('Invalid code');
+    }
+
+    const expiresAt = user.passwordResetExpiresAt;
+    const usedAt = user.passwordResetUsedAt;
+    const codeHash = user.passwordResetCodeHash;
+
+    if (!expiresAt || !codeHash || usedAt) {
+      throw new UnauthorizedException('Invalid code');
+    }
+    if (expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('Code expired');
+    }
+
+    const ok = await bcrypt.compare(code, codeHash);
+    if (!ok) {
+      throw new UnauthorizedException('Invalid code');
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+    user.passwordResetUsedAt = new Date();
+    user.passwordResetCodeHash = null;
+    user.passwordResetExpiresAt = null;
+
+    // Invalidate refresh token (force re-login)
+    user.refreshToken = randomBytes(64).toString('hex');
+
+    await this.usersRepository.save(user);
   }
 
   async register(
@@ -222,7 +322,23 @@ export class AuthService {
 
   async updateMe(
     userId: string,
-    update: { avatarUrl?: string | null },
+    update: {
+      avatarUrl?: string | null;
+      fullName?: string | null;
+      phone?: string | null;
+      address?: string | null;
+      companyName?: string | null;
+      taxNumber?: string | null;
+      taxOffice?: string | null;
+      cityId?: string | null;
+      districtId?: string | null;
+      city?: string | null;
+      district?: string | null;
+      activityArea?: string | null;
+      vehicleType?: string | null;
+      vehiclePlate?: string | null;
+      serviceArea?: string | null;
+    },
   ): Promise<AuthResponseUser> {
     const user = await this.usersRepository.findOne({ where: { id: userId } });
     if (!user) {
@@ -233,6 +349,35 @@ export class AuthService {
       const next = update.avatarUrl;
       user.avatarUrl = next && next.trim().length ? next.trim() : null;
     }
+
+    const setNullableTrimmed = (
+      key: keyof typeof update,
+      assign: (v: string | null) => void,
+    ) => {
+      if (!Object.prototype.hasOwnProperty.call(update, key)) return;
+      const raw = update[key];
+      if (raw == null) {
+        assign(null);
+        return;
+      }
+      const t = String(raw).trim();
+      assign(t.length ? t : null);
+    };
+
+    setNullableTrimmed('fullName', (v) => (user.fullName = v));
+    setNullableTrimmed('phone', (v) => (user.phone = v));
+    setNullableTrimmed('address', (v) => (user.address = v));
+    setNullableTrimmed('companyName', (v) => (user.companyName = v));
+    setNullableTrimmed('taxNumber', (v) => (user.taxNumber = v));
+    setNullableTrimmed('taxOffice', (v) => (user.taxOffice = v));
+    setNullableTrimmed('cityId', (v) => (user.cityId = v));
+    setNullableTrimmed('districtId', (v) => (user.districtId = v));
+    setNullableTrimmed('city', (v) => (user.city = v));
+    setNullableTrimmed('district', (v) => (user.district = v));
+    setNullableTrimmed('activityArea', (v) => (user.activityArea = v));
+    setNullableTrimmed('vehicleType', (v) => (user.vehicleType = v));
+    setNullableTrimmed('vehiclePlate', (v) => (user.vehiclePlate = v));
+    setNullableTrimmed('serviceArea', (v) => (user.serviceArea = v));
 
     const saved = await this.usersRepository.save(user);
     return this.sanitize(saved);

@@ -2,11 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
 
 @Entity({ name: 'listings' })
+@Index(['isActive', 'createdAt'])
+@Index(['ownerId', 'createdAt'])
 export class Listing {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -41,6 +44,10 @@ export class Listing {
   // Receiver (alıcı) phone number at dropoff.
   @Column({ type: 'varchar', nullable: true })
   receiver_phone?: string;
+
+  // Admin moderation: hide/unhide listing from public feeds.
+  @Column({ type: 'boolean', default: true })
+  isActive: boolean;
 
   @CreateDateColumn()
   createdAt: Date;

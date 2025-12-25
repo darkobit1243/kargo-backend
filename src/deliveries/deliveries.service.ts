@@ -219,7 +219,10 @@ export class DeliveriesService {
       body: `${listing?.title ?? 'Gönderi'} için taşıyıcı adrese ulaştı.`,
     });
 
-    return saved;
+    return {
+      ...saved,
+      proofPhotos: await this.s3Service.toDisplayUrls(saved.proofPhotos ?? []),
+    };
   }
 
   async deliver(id: string, carrierId: string): Promise<Delivery | null> {
@@ -445,6 +448,7 @@ export class DeliveriesService {
   async dispute(
     id: string,
     actor: { id: string; role: 'sender' | 'carrier' },
+    reason?: string | null,
   ): Promise<Delivery> {
     const delivery = await this.deliveriesRepository.findOne({ where: { id } });
     if (!delivery) {
@@ -475,6 +479,11 @@ export class DeliveriesService {
 
     this.assertTransition(delivery.status, 'disputed');
     delivery.status = 'disputed';
+    if (reason != null) {
+      const trimmed = String(reason).trim();
+      delivery.disputeReason = trimmed.length ? trimmed : null;
+    }
+    delivery.disputedAt = new Date();
     const saved = await this.deliveriesRepository.save(delivery);
     this.wsGateway.sendDeliveryUpdate(id, saved);
 
@@ -489,6 +498,43 @@ export class DeliveriesService {
     });
 
     return saved;
+  }
+
+  async addProofPhoto(
+    id: string,
+    carrierId: string,
+    photoKey?: string,
+  ): Promise<any> {
+    const key = (photoKey ?? '').trim();
+    if (!key) {
+      throw new BadRequestException('photoKey gerekli');
+    }
+
+    const delivery = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!delivery) {
+      throw new BadRequestException('Teslimat bulunamadı');
+    }
+    if (delivery.carrierId && delivery.carrierId !== carrierId) {
+      throw new ForbiddenException('Bu teslimatın taşıyıcısı siz değilsiniz');
+    }
+    if (!delivery.carrierId) {
+      // Allow attaching proof only after pickup assigned a carrier.
+      throw new BadRequestException('Teslimat için atanmış bir taşıyıcı bulunamadı');
+    }
+    if (delivery.status === 'cancelled') {
+      throw new BadRequestException('İptal edilmiş teslimata kanıt eklenemez');
+    }
+
+    const next = Array.isArray(delivery.proofPhotos) ? [...delivery.proofPhotos] : [];
+    if (!next.includes(key)) next.push(key);
+    delivery.proofPhotos = next;
+
+    const saved = await this.deliveriesRepository.save(delivery);
+    this.wsGateway.sendDeliveryUpdate(id, saved);
+    return {
+      ...saved,
+      proofPhotos: await this.s3Service.toDisplayUrls(saved.proofPhotos ?? []),
+    };
   }
 
   async updateLocation(
@@ -520,12 +566,22 @@ export class DeliveriesService {
     return saved;
   }
 
-  async findOne(id: string): Promise<Delivery | null> {
-    return this.deliveriesRepository.findOne({ where: { id } });
+  async findOne(id: string): Promise<any | null> {
+    const d = await this.deliveriesRepository.findOne({ where: { id } });
+    if (!d) return null;
+    return {
+      ...d,
+      proofPhotos: await this.s3Service.toDisplayUrls(d.proofPhotos ?? []),
+    };
   }
 
-  async findByListing(listingId: string): Promise<Delivery | null> {
-    return this.deliveriesRepository.findOne({ where: { listingId } });
+  async findByListing(listingId: string): Promise<any | null> {
+    const d = await this.deliveriesRepository.findOne({ where: { listingId } });
+    if (!d) return null;
+    return {
+      ...d,
+      proofPhotos: await this.s3Service.toDisplayUrls(d.proofPhotos ?? []),
+    };
   }
 
   async findByCarrier(carrierId: string): Promise<any[]> {
@@ -564,30 +620,34 @@ export class DeliveriesService {
       }),
     );
 
-    return deliveries.map((d) => {
-      const listing = listingMap.get(d.listingId);
-      return {
-        ...d,
-        listing: listing
-          ? {
-              id: listing.id,
-              title: listing.title,
-              description: listing.description,
-              photos: signedPhotosByListingId.get(listing.id) ?? listing.photos,
-              weight: listing.weight,
-              dimensions: listing.dimensions,
-              fragile: listing.fragile,
-              pickup_location: listing.pickup_location,
-              dropoff_location: listing.dropoff_location,
-              receiver_phone: listing.receiver_phone ?? null,
-              ownerId: listing.ownerId,
-              createdAt: listing.createdAt,
-              updatedAt: listing.updatedAt,
-            }
-          : null,
-        receiver_phone: listing?.receiver_phone ?? null,
-      };
-    });
+    return Promise.all(
+      deliveries.map(async (d) => {
+        const listing = listingMap.get(d.listingId);
+        return {
+          ...d,
+          proofPhotos: await this.s3Service.toDisplayUrls(d.proofPhotos ?? []),
+          listing: listing
+            ? {
+                id: listing.id,
+                title: listing.title,
+                description: listing.description,
+                photos:
+                  signedPhotosByListingId.get(listing.id) ?? listing.photos,
+                weight: listing.weight,
+                dimensions: listing.dimensions,
+                fragile: listing.fragile,
+                pickup_location: listing.pickup_location,
+                dropoff_location: listing.dropoff_location,
+                receiver_phone: listing.receiver_phone ?? null,
+                ownerId: listing.ownerId,
+                createdAt: listing.createdAt,
+                updatedAt: listing.updatedAt,
+              }
+            : null,
+          receiver_phone: listing?.receiver_phone ?? null,
+        };
+      }),
+    );
   }
 
   async findByOwner(ownerId: string): Promise<any[]> {
@@ -652,48 +712,52 @@ export class DeliveriesService {
       acceptedOffers.map((o) => [o.listingId, o]),
     );
 
-    return deliveries.map((d) => {
-      const listing = listingMap.get(d.listingId);
-      const carrier = d.carrierId ? carrierMap.get(d.carrierId) : null;
-      const acceptedOffer = acceptedOfferMap.get(d.listingId);
-      return {
-        ...d,
-        listing: listing
-          ? {
-              id: listing.id,
-              title: listing.title,
-              description: listing.description,
-              photos: signedPhotosByListingId.get(listing.id) ?? listing.photos,
-              weight: listing.weight,
-              dimensions: listing.dimensions,
-              fragile: listing.fragile,
-              pickup_location: listing.pickup_location,
-              dropoff_location: listing.dropoff_location,
-              receiver_phone: listing.receiver_phone ?? null,
-              ownerId: listing.ownerId,
-              createdAt: listing.createdAt,
-              updatedAt: listing.updatedAt,
-            }
-          : null,
-        receiver_phone: listing?.receiver_phone ?? null,
-        carrier: carrier
-          ? {
-              id: carrier.id,
-              fullName: carrier.fullName ?? null,
-              email: carrier.email ?? null,
-              avatarUrl: signedCarrierAvatar.get(carrier.id) ?? null,
-              rating: carrier.rating ?? null,
-              deliveredCount: carrier.deliveredCount ?? null,
-            }
-          : null,
-        acceptedOffer: acceptedOffer
-          ? {
-              id: acceptedOffer.id,
-              amount: acceptedOffer.amount,
-              proposerId: acceptedOffer.proposerId,
-            }
-          : null,
-      };
-    });
+    return Promise.all(
+      deliveries.map(async (d) => {
+        const listing = listingMap.get(d.listingId);
+        const carrier = d.carrierId ? carrierMap.get(d.carrierId) : null;
+        const acceptedOffer = acceptedOfferMap.get(d.listingId);
+        return {
+          ...d,
+          proofPhotos: await this.s3Service.toDisplayUrls(d.proofPhotos ?? []),
+          listing: listing
+            ? {
+                id: listing.id,
+                title: listing.title,
+                description: listing.description,
+                photos:
+                  signedPhotosByListingId.get(listing.id) ?? listing.photos,
+                weight: listing.weight,
+                dimensions: listing.dimensions,
+                fragile: listing.fragile,
+                pickup_location: listing.pickup_location,
+                dropoff_location: listing.dropoff_location,
+                receiver_phone: listing.receiver_phone ?? null,
+                ownerId: listing.ownerId,
+                createdAt: listing.createdAt,
+                updatedAt: listing.updatedAt,
+              }
+            : null,
+          receiver_phone: listing?.receiver_phone ?? null,
+          carrier: carrier
+            ? {
+                id: carrier.id,
+                fullName: carrier.fullName ?? null,
+                email: carrier.email ?? null,
+                avatarUrl: signedCarrierAvatar.get(carrier.id) ?? null,
+                rating: carrier.rating ?? null,
+                deliveredCount: carrier.deliveredCount ?? null,
+              }
+            : null,
+          acceptedOffer: acceptedOffer
+            ? {
+                id: acceptedOffer.id,
+                amount: acceptedOffer.amount,
+                proposerId: acceptedOffer.proposerId,
+              }
+            : null,
+        };
+      }),
+    );
   }
 }

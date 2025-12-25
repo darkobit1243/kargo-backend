@@ -33,6 +33,7 @@ export class AwsDebugController {
 
     return {
       env,
+      enabled: true,
       aws: {
         region: Boolean(region && region.trim().length > 0),
         accessKey: Boolean(accessKey && accessKey.trim().length > 0),

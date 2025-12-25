@@ -2,7 +2,9 @@ import { Body, Controller, Get, Patch, Post, Req, UseGuards } from '@nestjs/comm
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -18,6 +20,19 @@ export class AuthController {
     return this.authService.login(body);
   }
 
+  @Post('forgot-password')
+  async forgotPassword(
+    @Body() body: ForgotPasswordDto,
+  ): Promise<{ ok: true; debugCode?: string }> {
+    return this.authService.requestPasswordReset(body);
+  }
+
+  @Post('reset-password')
+  async resetPassword(@Body() body: ResetPasswordDto): Promise<{ ok: true }> {
+    await this.authService.resetPassword(body);
+    return { ok: true };
+  }
+
   // Token doğru çalışıyor mu test etmek için basit endpoint
   @Get('me')
   @UseGuards(JwtAuthGuard)
@@ -30,7 +45,24 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async updateMe(
     @Req() req: Request,
-    @Body() body: { avatarUrl?: string | null },
+    @Body()
+    body: {
+      avatarUrl?: string | null;
+      fullName?: string | null;
+      phone?: string | null;
+      address?: string | null;
+      companyName?: string | null;
+      taxNumber?: string | null;
+      taxOffice?: string | null;
+      cityId?: string | null;
+      districtId?: string | null;
+      city?: string | null;
+      district?: string | null;
+      activityArea?: string | null;
+      vehicleType?: string | null;
+      vehiclePlate?: string | null;
+      serviceArea?: string | null;
+    },
   ): Promise<any> {
     const payload = req.user as { sub: string };
     return this.authService.updateMe(payload.sub, body);
