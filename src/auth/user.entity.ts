@@ -57,47 +57,47 @@ export class User {
   @Column({ type: 'varchar', default: 'sender' })
   role: UserRole;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   fullName?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   phone?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   address?: string | null;
 
   // Sender company info (required for sender onboarding)
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   companyName?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   taxNumber?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   taxOffice?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   cityId?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   districtId?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   city?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   district?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   activityArea?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   vehicleType?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   vehiclePlate?: string | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'text', nullable: true })
   serviceArea?: string | null;
 
   // Profil görselleri / istatistikler (opsiyonel)
