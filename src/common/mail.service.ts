@@ -27,17 +27,23 @@ export class MailService implements OnModuleInit {
       return;
     }
 
-    const host = this.config.get<string>('SMTP_HOST', '');
+    // Gmail default (official): smtp.gmail.com:587 + STARTTLS
+    // If SMTP_HOST is empty, we assume Gmail.
+    const configuredHost = (this.config.get<string>('SMTP_HOST') ?? '').trim();
+    const host = configuredHost || 'smtp.gmail.com';
     const port = Number(this.config.get<string>('SMTP_PORT', '587'));
     const smtpUser = this.config.get<string>('SMTP_USER', '');
     const smtpPass = this.config.get<string>('SMTP_PASS', '');
 
     const secureDefault = port === 465;
-    const secure =
-      this.config.get<string>('SMTP_SECURE', secureDefault ? 'true' : 'false') ===
-      'true';
 
-    const requireTLS = this.config.get<string>('SMTP_REQUIRE_TLS', 'false') === 'true';
+    const secureRaw = this.config.get<string>('SMTP_SECURE');
+    const secure = (secureRaw ?? (secureDefault ? 'true' : 'false')) === 'true';
+
+    // STARTTLS (Gmail on 587) should upgrade to TLS.
+    const requireTLSDefault = host === 'smtp.gmail.com' && port === 587;
+    const requireTLSRaw = this.config.get<string>('SMTP_REQUIRE_TLS');
+    const requireTLS = (requireTLSRaw ?? (requireTLSDefault ? 'true' : 'false')) === 'true';
     const rejectUnauthorized =
       this.config.get<string>('SMTP_TLS_REJECT_UNAUTHORIZED', 'true') === 'true';
 
@@ -105,26 +111,12 @@ export class MailService implements OnModuleInit {
       tls: { rejectUnauthorized },
     } as const;
 
-    if (host) {
-      this.transporter = nodemailer.createTransport({
-        ...transportBase,
-        host,
-        port,
-      });
-      this.transportLabel = `smtp host=${host} port=${port} secure=${secure}`;
-      this.logger.log(
-        `MailService initialized (${this.transportLabel} requireTLS=${requireTLS} pool=${pool}).`,
-      );
-      return;
-    }
-
-    // If SMTP_HOST is not provided, default to Gmail transporter.
-    // Note: some hosts block outbound SMTP ports; consider using an email API provider if you keep getting ETIMEDOUT.
     this.transporter = nodemailer.createTransport({
       ...transportBase,
-      service: 'gmail',
+      host,
+      port,
     });
-    this.transportLabel = `service=gmail secure=${secure}`;
+    this.transportLabel = `smtp host=${host} port=${port} secure=${secure}`;
     this.logger.log(
       `MailService initialized (${this.transportLabel} requireTLS=${requireTLS} pool=${pool}).`,
     );
