@@ -8,12 +8,10 @@ import { RefreshController } from './refresh.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { User } from './user.entity';
 import { RolesGuard } from './roles.guard';
-import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
     ConfigModule,
-    SmsModule,
     TypeOrmModule.forFeature([User]),
     JwtModule.registerAsync({
       inject: [ConfigService],

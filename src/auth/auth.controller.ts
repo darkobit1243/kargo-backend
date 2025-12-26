@@ -27,8 +27,6 @@ export class AuthController {
   ): Promise<{
     ok: true;
     debugCode?: string;
-    phoneE164?: string;
-    phoneNational?: string;
     debugReason?: string;
   }> {
     return this.authService.requestPasswordReset(body);

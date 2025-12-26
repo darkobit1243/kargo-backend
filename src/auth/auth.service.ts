@@ -17,7 +17,6 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordPhoneDto } from './dto/reset-password-phone.dto';
 import { S3Service } from '../common/s3.service';
 import { MailService } from '../common/mail.service';
-import { SmsService } from '../sms/sms.service';
 import * as admin from 'firebase-admin';
 
 export type AuthResponseUser = {
@@ -55,7 +54,6 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly s3Service: S3Service,
     private readonly mail: MailService,
-    private readonly sms: SmsService,
   ) {}
 
   private async sanitize(user: User): Promise<AuthResponseUser> {
@@ -223,70 +221,26 @@ export class AuthService {
   ): Promise<{
     ok: true;
     debugCode?: string;
-    phoneE164?: string;
-    phoneNational?: string;
     debugReason?: string;
   }> {
     const email = (body?.email ?? '').trim();
-    const phoneInput = (body?.phone ?? '').trim();
 
     const debugEnabled =
       this.config.get<string>('AUTH_FORGOT_PASSWORD_DEBUG', 'false') === 'true';
 
-    const user = phoneInput
-      ? await this.findUserByPhone(phoneInput)
-      : await this.findUserByEmail(email);
+    const user = await this.findUserByEmail(email);
 
     // Avoid user enumeration: always return ok.
     if (!user) {
       return debugEnabled
         ? {
             ok: true,
-            debugReason: phoneInput
-              ? 'user_not_found_by_phone'
-              : 'user_not_found_by_email',
+            debugReason: 'user_not_found_by_email',
           }
         : { ok: true };
     }
 
-    const channel = (this.config.get<string>('AUTH_RESET_CHANNEL', 'sms') ?? 'sms')
-      .trim()
-      .toLowerCase();
-
-    // Channel: firebase (phone OTP)
-    // Client will call Firebase Auth verifyPhoneNumber using the returned phoneE164.
-    // After OTP verification, client calls /auth/reset-password-phone with idToken + newPassword.
-    if (channel === 'firebase') {
-      const phoneFromDb = (user?.phone ?? '').trim();
-      const phoneFromFirebase =
-        !phoneInput && !phoneFromDb ? await this.getFirebasePhoneByEmail(email) : null;
-
-      // Priority:
-      // 1) DB phone (authoritative for our app)
-      // 2) phone provided by requester (when initiating by phone)
-      // 3) Firebase phone (fallback when initiating by email)
-      const phoneRaw = phoneFromDb || phoneInput || phoneFromFirebase || '';
-      const normalized = phoneRaw ? this.normalizeTrPhones(phoneRaw) : null;
-      if (!normalized) {
-        console.error('[AUTH] Cannot start Firebase OTP reset: user.phone is empty/invalid');
-        return debugEnabled
-          ? { ok: true, debugReason: 'phone_missing_or_invalid' }
-          : { ok: true };
-      }
-
-      // Best-effort: sync DB phone from Firebase (only when missing).
-      if (user && (!user.phone || !user.phone.trim().length) && phoneFromFirebase) {
-        try {
-          user.phone = normalized.e164;
-          await this.usersRepository.save(user);
-        } catch {
-          // Ignore sync failures.
-        }
-      }
-      return { ok: true, phoneE164: normalized.e164, phoneNational: normalized.national };
-    }
-
-    // Channels: sms/email (6-digit code)
+    // Email-only (6-digit code)
     const code = randomInt(0, 1000000).toString().padStart(6, '0');
     const codeHash = await bcrypt.hash(code, 10);
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -305,31 +259,16 @@ export class AuthService {
       <p>Bu kod 5 dakika geçerlidir.</p>
     `;
 
-    if (channel === 'email') {
-      try {
-        await this.mail.sendMail({
-          to: user.email,
-          subject,
-          text,
-          html,
-        });
-      } catch (e) {
-        // Do not fail the request; avoid leaking system state.
-        console.error('[AUTH] Failed to send reset email', e);
-      }
-    } else {
-      const phone = ((user.phone ?? '') || phoneInput).trim();
-      if (!phone) {
-        console.error('[AUTH] Cannot send reset SMS: user.phone is empty');
-      } else {
-        const smsText = `Şifre sıfırlama kodun: ${code}. 5 dk geçerli.`;
-        try {
-          await this.sms.sendSms(phone, smsText);
-        } catch (e) {
-          // Do not fail the request; avoid leaking system state.
-          console.error('[AUTH] Failed to send reset SMS', e);
-        }
-      }
+    try {
+      await this.mail.sendMail({
+        to: user.email,
+        subject,
+        text,
+        html,
+      });
+    } catch (e) {
+      // Do not fail the request; avoid leaking system state.
+      console.error('[AUTH] Failed to send reset email', e);
     }
 
     if (this.config.get<string>('AUTH_LOG_RESET_CODE', 'false') === 'true') {

@@ -7,7 +7,6 @@ import { AuthService } from './auth.service';
 import { User } from './user.entity';
 import { S3Service } from '../common/s3.service';
 import { MailService } from '../common/mail.service';
-import { SmsService } from '../sms/sms.service';
 
 jest.mock('bcrypt', () => ({
   hash: jest.fn(),
@@ -44,10 +43,6 @@ describe('AuthService', () => {
     sendMail: jest.fn(async () => undefined),
   };
 
-  const smsService = {
-    sendSms: jest.fn(async () => undefined),
-  };
-
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -57,7 +52,6 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: configService },
         { provide: S3Service, useValue: s3Service },
         { provide: MailService, useValue: mailService },
-        { provide: SmsService, useValue: smsService },
       ],
     }).compile();
 
